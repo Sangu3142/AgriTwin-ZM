@@ -1,0 +1,97 @@
+============================================================
+ AgriTwin-ZM v1.0 -- Build & Run Instructions
+============================================================
+
+PROJECT LAYOUT
+--------------
+AgriTwin-ZM/
+  src/agritwin/Main.java           <- entry point (console default)
+  src/agritwin/TestRunner.java     <- 7 PASS/FAIL unit tests
+  src/agritwin/model/              <- Maize, Tomato, SimulationRecord
+  src/agritwin/service/            <- SupplyDemandEngine, StorageLossSimulator,
+                                      PolicyEngine, ReportGenerator
+  src/agritwin/util/FileHandler.java
+  src/agritwin/ui/ConsoleUI.java
+  src/agritwin/ui/GuiApp.java      <- optional JavaFX GUI
+  docs/UML_ClassDiagram.puml       <- PlantUML diagram source
+  docs/UML_ClassDiagram.txt        <- text-only fallback diagram
+  build.bat                        <- console build (no JavaFX needed)
+  build_with_javafx.bat            <- full build (requires JavaFX SDK)
+
+
+REQUIREMENTS
+------------
+- JDK 11 or newer (any vendor; OpenJDK is fine)
+- Optional: JavaFX SDK 17+ (only for the GUI)
+
+VERIFY THE JDK
+--------------
+> javac -version
+> java  -version
+
+
+BUILD (CONSOLE-ONLY, NO JAVAFX)
+-------------------------------
+From the AgriTwin-ZM/ directory:
+
+> build.bat
+
+Or manually (Windows cmd):
+> if not exist out mkdir out
+> dir /s /b src\*.java | findstr /v /i "GuiApp.java" > sources.txt
+> javac -d out @sources.txt
+
+Or on Linux / macOS:
+> mkdir -p out
+> find src -name "*.java" ! -name "GuiApp.java" > sources.txt
+> javac -d out @sources.txt
+
+
+BUILD WITH JAVAFX GUI
+---------------------
+1. Download JavaFX SDK from https://gluonhq.com/products/javafx/
+2. Extract somewhere, e.g. C:\javafx-sdk-21
+3. Set the env variable, then run the build script:
+
+   > set JAVAFX_LIB=C:\javafx-sdk-21\lib
+   > build_with_javafx.bat
+
+
+RUN -- CONSOLE MODE
+-------------------
+> java -cp out agritwin.Main
+
+
+RUN -- GUI MODE (after building with JavaFX)
+--------------------------------------------
+> java --module-path "%JAVAFX_LIB%" --add-modules javafx.controls -cp out agritwin.Main --gui
+
+
+RUN THE TEST SUITE
+------------------
+> java -cp out agritwin.TestRunner
+
+Expected output (all 7 tests should report PASS):
+  [PASS] Test 1 (Surplus 10000-8000)
+  [PASS] Test 2 (oversupply lowers price)
+  [PASS] Test 3 (Maize 3% loss x3 months)
+  [PASS] Test 4 (cold < open spoilage)
+  [PASS] Test 5 (FSI when prod<demand)
+  [PASS] Test 6 (FRA alert at 400k)
+  [PASS] Test 7 (save + reload roundtrip)
+  Results: 7 passed, 0 failed
+
+
+VIEWING THE UML DIAGRAM
+-----------------------
+- docs/UML_ClassDiagram.txt is plain ASCII -- open in any text editor.
+- docs/UML_ClassDiagram.puml renders to PNG/SVG with PlantUML:
+    https://plantuml.com/  (online editor) or `plantuml UML_ClassDiagram.puml`
+
+
+NOTES FOR THE REPORT
+--------------------
+Each .java file contains a comment block at the top with:
+  MODULE / PURPOSE / OOP CONCEPTS USED / DATA STRUCTURES / ALGORITHMS
+
+Quote those blocks directly for the technical-report module write-up.
