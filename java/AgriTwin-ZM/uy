@@ -1,0 +1,19 @@
+============================================================
+ AgriTwin-ZM v1.0 -- Simulation Report
+ Generated: 2026-05-03 15:10:41
+ Records  : 1
+============================================================
+
+Month 1 | Tomato
+------------------------------------------------------------
+  Production            : 28.08 tons
+  Demand                : 444.00 tons
+  Surplus / Shortage    : -415.92 tons
+  Waste / Spoilage      : 25.92 tons
+  Revenue               : ZMW 8,985.60
+  Food Security Indicator: 6.32%
+  Policy Alerts         : FRA RESERVE OK; EXPORT OK; SPOILAGE CRITICAL (held 10d > shelf-life 4d)
+
+============================================================
+ END OF REPORT
+============================================================

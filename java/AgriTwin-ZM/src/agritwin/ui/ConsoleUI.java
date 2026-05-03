@@ -2,12 +2,12 @@ package agritwin.ui;
 
 import agritwin.model.Maize;
 import agritwin.model.SimulationRecord;
+import agritwin.model.StorageType;
 import agritwin.model.Tomato;
-import agritwin.service.PolicyEngine;
 import agritwin.service.ReportGenerator;
-import agritwin.service.StorageLossSimulator;
-import agritwin.service.SupplyDemandEngine;
+import agritwin.service.SimulationRunner;
 import agritwin.util.FileHandler;
+import agritwin.util.RecordStore;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -18,45 +18,53 @@ import java.util.Scanner;
  * MODULE: Console User Interface
  * PURPOSE: Menu-driven entry point that lets the user run maize / tomato
  *          simulations, view monthly reports, save a simulation to disk and
- *          reload a previously saved one. All business logic is delegated
- *          to the service classes — this file only handles I/O and flow.
- * OOP CONCEPTS USED: Composition (holds service instances); Encapsulation;
- *                    Polymorphism via service-class APIs.
- * DATA STRUCTURES: ArrayList&lt;SimulationRecord&gt; for the in-memory history.
- * ALGORITHMS: Sequential month loop driving compounded loss + economics.
+ *          reload a previously saved one. All simulation logic is delegated
+ *          to SimulationRunner; this file handles only I/O and flow control.
+ * OOP CONCEPTS USED: Composition (holds SimulationRunner, ReportGenerator and
+ *                    RecordStore instances); Encapsulation; Polymorphism — files
+ *                    is declared as RecordStore (interface), not the concrete
+ *                    FileHandler, following Dependency Inversion; try-with-
+ *                    resources guarantees the Scanner is always closed.
+ * DATA STRUCTURES: ArrayList<SimulationRecord> for the in-memory history.
+ * ALGORITHMS: Sequential menu loop; delegates month-by-month simulation state
+ *             machine to SimulationRunner (no loop logic here).
  */
 public class ConsoleUI {
 
-    private final Scanner scanner = new Scanner(System.in);
-    private final SupplyDemandEngine supply = new SupplyDemandEngine();
-    private final StorageLossSimulator storage = new StorageLossSimulator();
-    private final PolicyEngine policy = new PolicyEngine();
-    private final ReportGenerator reporter = new ReportGenerator();
-    private final FileHandler files = new FileHandler();
+    private Scanner scanner;
+    private final SimulationRunner runner   = new SimulationRunner();
+    private final ReportGenerator reporter  = new ReportGenerator();
+    private final RecordStore files         = new FileHandler();
 
     /** History of every record produced in this session. */
     private final List<SimulationRecord> history = new ArrayList<>();
 
-    /** Entry point used by Main. */
+    /**
+     * Entry point used by Main. The Scanner is declared inside try-with-resources
+     * so it is closed automatically (even on exception) the moment start() returns.
+     */
     public void start() {
         printBanner();
-        boolean running = true;
-        while (running) {
-            printMenu();
-            String choice = readLine("Choose an option: ").trim();
-            switch (choice) {
-                case "1": runMaizeSimulation(); break;
-                case "2": runTomatoSimulation(); break;
-                case "3": viewReports(); break;
-                case "4": loadPreviousSimulation(); break;
-                case "5": saveCurrentSimulation(); break;
-                case "0":
-                case "6":
-                    running = false;
-                    System.out.println("Goodbye -- thank you for using AgriTwin-ZM.");
-                    break;
-                default:
-                    System.out.println("Unknown option, please try again.");
+        try (Scanner sc = new Scanner(System.in)) {
+            this.scanner = sc;
+            boolean running = true;
+            while (running) {
+                printMenu();
+                String choice = readLine("Choose an option: ").trim();
+                switch (choice) {
+                    case "1": runMaizeSimulation();     break;
+                    case "2": runTomatoSimulation();    break;
+                    case "3": viewReports();            break;
+                    case "4": loadPreviousSimulation(); break;
+                    case "5": saveCurrentSimulation();  break;
+                    case "0":
+                    case "6":
+                        running = false;
+                        System.out.println("Goodbye -- thank you for using AgriTwin-ZM.");
+                        break;
+                    default:
+                        System.out.println("Unknown option, please try again.");
+                }
             }
         }
     }
@@ -81,48 +89,24 @@ public class ConsoleUI {
     }
 
     // ---------------------------------------------------------------------
-    // Simulation flows
+    // Simulation flows — collect inputs, delegate logic to SimulationRunner
     // ---------------------------------------------------------------------
 
     private void runMaizeSimulation() {
         System.out.println("\n>> Maize Simulation Setup");
-        double production = readDouble("Enter production volume (tons): ", 10000);
-        double demand     = readDouble("Enter projected demand (tons): ", 8000);
-        double storageCap = readDouble("Enter storage capacity (tons): ", 12000);
-        double moisture   = readDouble("Enter moisture level (%): ", 12.5);
-        double price      = readDouble("Enter farm-gate price (ZMW/ton): ", 7000); // ~ZMW 350/50kg
-        double monthlyLoss= readDouble("Enter monthly loss rate (%): ", 3.0);
-        int months        = readInt   ("Number of months to simulate: ", 6);
+        double production  = readDouble("Enter production volume (tons): ", 10000);
+        double demand      = readDouble("Enter projected demand (tons): ", 8000);
+        double storageCap  = readDouble("Enter storage capacity (tons): ", 12000);
+        double moisture    = readDouble("Enter moisture level (%): ", 12.5);
+        double price       = readDouble("Enter farm-gate price (ZMW/ton): ", 7000);
+        double monthlyLoss = readDouble("Enter monthly loss rate (%): ", 3.0);
+        int    months      = readInt   ("Number of months to simulate: ", 6);
 
         Maize maize = new Maize(production, storageCap, moisture, price, monthlyLoss);
         System.out.println("\nInitial: " + maize);
 
-        double currentStock = production;
-        double currentPrice = price;
-        double monthlyDemand = demand / months; // spread demand over horizon
-
-        for (int month = 1; month <= months; month++) {
-            // Apply this month's storage loss to remaining stock
-            double remainingAfterLoss = storage.simulateMaizeLoss(
-                    new Maize(currentStock, storageCap, moisture, currentPrice, monthlyLoss),
-                    1);
-            double waste = currentStock - remainingAfterLoss;
-            currentStock = remainingAfterLoss;
-
-            // Sell up to monthly demand from current stock
-            double sold = Math.min(currentStock, monthlyDemand);
-            double revenue = supply.calculateRevenue(sold, currentPrice);
-            currentStock -= sold;
-
-            double surplus = supply.calculateSurplus(remainingAfterLoss, monthlyDemand);
-            currentPrice  = supply.adjustPrice(currentPrice, surplus, remainingAfterLoss);
-            double fsi    = supply.calculateFoodSecurityIndicator(remainingAfterLoss, monthlyDemand);
-            String alerts = policy.evaluateAll(currentStock, surplus, remainingAfterLoss,
-                                               month, -1, -1);
-
-            SimulationRecord rec = new SimulationRecord(
-                    month, "Maize", remainingAfterLoss, monthlyDemand,
-                    surplus, waste, revenue, fsi, alerts);
+        List<SimulationRecord> records = runner.runMaizeSimulation(maize, demand, months);
+        for (SimulationRecord rec : records) {
             history.add(rec);
             reporter.generateMonthlyReport(rec);
         }
@@ -132,36 +116,25 @@ public class ConsoleUI {
 
     private void runTomatoSimulation() {
         System.out.println("\n>> Tomato Simulation Setup");
-        double production = readDouble("Enter production volume (tons): ", 500);
-        double demand     = readDouble("Enter projected demand (tons): ", 480);
-        int    shelfLife  = readInt   ("Enter shelf life (days): ", 14);
-        String storageT   = readChoice("Storage type [cold/open]: ", new String[]{"cold","open"}, "open");
-        double spoilage   = readDouble("Enter base spoilage rate (%/day): ", 5.0);
-        double crateP     = readDouble("Enter market price (ZMW/crate): ", 120.0);
-        int    days       = readInt   ("Days before sale: ", 7);
+        double production  = readDouble("Enter production volume (tons): ", 500);
+        double demand      = readDouble("Enter projected demand (tons): ", 480);
+        int    shelfLife   = readInt   ("Enter shelf life (days): ", 14);
+        String storageStr  = readChoice("Storage type [cold/open]: ", new String[]{"cold","open"}, "open");
+        StorageType storageT = StorageType.valueOf(storageStr.trim().toUpperCase());
+        double spoilage    = readDouble("Enter base spoilage rate (%/day): ", 5.0);
+        double crateP      = readDouble("Enter market price (ZMW/crate): ", 120.0);
+        int    days        = readInt   ("Days before sale: ", 7);
 
-        // ZMW/ton derived from ZMW/crate at ~25kg per crate (40 crates per ton)
+        // ZMW/ton derived from ZMW/crate at ~25 kg per crate (40 crates per ton)
         double pricePerTon = crateP * 40.0;
-
         Tomato tomato = new Tomato(production, shelfLife, storageT, spoilage, crateP);
         System.out.println("\nInitial: " + tomato);
 
-        double waste = storage.simulateTomatoSpoilage(tomato, days);
-        double saleable = Math.max(0.0, production - waste);
-
-        double sold = Math.min(saleable, demand);
-        double revenue = supply.calculateRevenue(sold, pricePerTon);
-        double surplus = supply.calculateSurplus(saleable, demand);
-        double newPrice = supply.adjustPrice(pricePerTon, surplus, Math.max(saleable,1));
-        double fsi = supply.calculateFoodSecurityIndicator(saleable, demand);
-        String alerts = policy.evaluateAll(/*maize stock irrelevant*/Double.POSITIVE_INFINITY,
-                                           surplus, saleable, -1, days, shelfLife);
-
-        SimulationRecord rec = new SimulationRecord(
-                1, "Tomato", saleable, demand, surplus, waste, revenue, fsi, alerts);
-        history.add(rec);
-        System.out.printf("Adjusted ZMW/ton after market response: %.2f%n", newPrice);
-        reporter.generateMonthlyReport(rec);
+        List<SimulationRecord> records = runner.runTomatoSimulation(tomato, demand, days, pricePerTon);
+        for (SimulationRecord rec : records) {
+            history.add(rec);
+            reporter.generateMonthlyReport(rec);
+        }
 
         offerExport();
     }

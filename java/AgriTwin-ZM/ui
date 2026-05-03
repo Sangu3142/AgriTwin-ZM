@@ -1,0 +1,49 @@
+============================================================
+ AgriTwin-ZM v1.0 -- Simulation Report
+ Generated: 2026-04-28 22:21:58
+ Records  : 4
+============================================================
+
+Month 1 | Maize
+------------------------------------------------------------
+  Production            : 275.00 tons
+  Demand                : 12.00 tons
+  Surplus / Shortage    : 263.00 tons
+  Waste / Spoilage      : 225.00 tons
+  Revenue               : ZMW 48.00
+  Food Security Indicator: 100.00%
+  Policy Alerts         : RESERVE ALERT (stock 263t below FRA threshold 500000t); EXPORT REVIEW REQUIRED (surplus 95.6% of production); STORAGE OK;
+
+Month 2 | Maize
+------------------------------------------------------------
+  Production            : 144.65 tons
+  Demand                : 12.00 tons
+  Surplus / Shortage    : 132.65 tons
+  Waste / Spoilage      : 118.35 tons
+  Revenue               : ZMW 43.41
+  Food Security Indicator: 100.00%
+  Policy Alerts         : RESERVE ALERT (stock 133t below FRA threshold 500000t); EXPORT REVIEW REQUIRED (surplus 91.7% of production); STORAGE OK;
+
+Month 3 | Maize
+------------------------------------------------------------
+  Production            : 72.96 tons
+  Demand                : 12.00 tons
+  Surplus / Shortage    : 60.96 tons
+  Waste / Spoilage      : 59.69 tons
+  Revenue               : ZMW 39.43
+  Food Security Indicator: 100.00%
+  Policy Alerts         : RESERVE ALERT (stock 61t below FRA threshold 500000t); EXPORT REVIEW REQUIRED (surplus 83.6% of production); STORAGE OK;
+
+Month 4 | Maize
+------------------------------------------------------------
+  Production            : 33.53 tons
+  Demand                : 12.00 tons
+  Surplus / Shortage    : 21.53 tons
+  Waste / Spoilage      : 27.43 tons
+  Revenue               : ZMW 36.13
+  Food Security Indicator: 100.00%
+  Policy Alerts         : RESERVE ALERT (stock 22t below FRA threshold 500000t); EXPORT REVIEW REQUIRED (surplus 64.2% of production); STORAGE OK;
+
+============================================================
+ END OF REPORT
+============================================================

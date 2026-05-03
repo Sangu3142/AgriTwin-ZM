@@ -2,6 +2,7 @@ package agritwin.service;
 
 import agritwin.model.SimulationRecord;
 import agritwin.util.FileHandler;
+import agritwin.util.RecordStore;
 
 import java.io.FileWriter;
 import java.io.IOException;
@@ -14,15 +15,35 @@ import java.util.List;
  * MODULE: Report Generator
  * PURPOSE: Formats SimulationRecord objects into human-readable reports for
  *          the console and exports a full simulation history to a .txt file.
- *          Uses FileHandler for the CSV-style structured persistence path.
- * OOP CONCEPTS USED: Encapsulation; Composition (delegates to FileHandler).
- * DATA STRUCTURES: List&lt;SimulationRecord&gt;.
+ *          Uses the RecordStore interface (not the concrete FileHandler) for
+ *          the structured CSV-style persistence path.
+ * OOP CONCEPTS USED: Encapsulation; Composition (delegates to RecordStore);
+ *                    Polymorphism — the injected RecordStore can be any
+ *                    conforming implementation (FileHandler today, SQLite in v2);
+ *                    Dependency Injection via constructor — the store is supplied
+ *                    by the caller rather than instantiated internally.
+ * DATA STRUCTURES: List<SimulationRecord>.
  * ALGORITHMS: Iteration over records; String formatting.
  */
 public class ReportGenerator {
 
     private static final DateTimeFormatter TS_FMT =
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+
+    private final RecordStore store;
+
+    /** Default — uses the standard file-based store. */
+    public ReportGenerator() {
+        this.store = new FileHandler();
+    }
+
+    /**
+     * Injection constructor — callers (tests, future DB-backed versions) can
+     * supply any RecordStore implementation without touching this class.
+     */
+    public ReportGenerator(RecordStore store) {
+        this.store = store;
+    }
 
     /** Builds (and prints) a single monthly report for one record. */
     public String generateMonthlyReport(SimulationRecord record) {
@@ -50,8 +71,8 @@ public class ReportGenerator {
 
     /**
      * Writes a full readable report (one block per month) to a .txt file.
-     * Uses FileWriter directly per spec; structured CSV-style export goes
-     * through FileHandler.saveSimulation.
+     * Uses FileWriter directly per spec; structured pipe-delimited export
+     * goes through exportStructured below.
      */
     public void exportToFile(List<SimulationRecord> records, String filename) throws IOException {
         try (PrintWriter pw = new PrintWriter(new FileWriter(filename))) {
@@ -82,10 +103,10 @@ public class ReportGenerator {
     }
 
     /**
-     * Convenience pass-through to FileHandler for the structured CSV-style
-     * export the assignment also asks for.
+     * Persists records via the injected RecordStore — pipe-delimited by
+     * FileHandler by default, swappable to any RecordStore implementation.
      */
     public void exportStructured(List<SimulationRecord> records, String path) throws IOException {
-        new FileHandler().saveSimulation(records, path);
+        store.saveSimulation(records, path);
     }
 }
