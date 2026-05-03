@@ -6,6 +6,7 @@ import agritwin.model.StorageType;
 import agritwin.model.Tomato;
 import agritwin.service.ReportGenerator;
 import agritwin.service.SimulationRunner;
+import agritwin.service.StorageLossSimulator;
 import agritwin.util.FileHandler;
 import agritwin.util.RecordStore;
 
@@ -17,9 +18,16 @@ import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.geometry.Insets;
 import javafx.scene.Scene;
+import javafx.scene.chart.BarChart;
+import javafx.scene.chart.CategoryAxis;
+import javafx.scene.chart.LineChart;
+import javafx.scene.chart.NumberAxis;
+import javafx.scene.chart.PieChart;
+import javafx.scene.chart.XYChart;
 import javafx.scene.control.Button;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
+import javafx.scene.control.ScrollPane;
 import javafx.scene.control.Tab;
 import javafx.scene.control.TabPane;
 import javafx.scene.control.TableColumn;
@@ -31,18 +39,30 @@ import javafx.scene.layout.GridPane;
 import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
 
+import java.util.List;
+
 /**
  * MODULE: JavaFX GUI Application (optional)
  * PURPOSE: Provides a tabbed graphical front-end over the SAME service
  *          classes used by ConsoleUI. Tab 1 collects inputs, Tab 2 shows a
  *          live TableView of simulation records bound via ObservableList,
- *          and Tab 3 mirrors the textual report output. Simulation logic is
+ *          Tab 3 mirrors the textual report output, and Tab 4 shows three
+ *          charts visualising the simulation results. Simulation logic is
  *          delegated entirely to SimulationRunner; this file handles only
  *          input collection and output display.
  * OOP CONCEPTS USED: Inheritance (extends Application); Composition;
  *                    Polymorphism — files declared as RecordStore interface;
- *                    Property-based binding (JavaFX observables).
- * DATA STRUCTURES: ObservableList<RecordRow> bound to a TableView.
+ *                    Property-based binding (JavaFX observables) — TableView
+ *                    rows use SimpleDoubleProperty / SimpleStringProperty
+ *                    wrappers so the table auto-updates when the list changes;
+ *                    the same ObservableList pattern drives the chart data via
+ *                    ObservableList<XYChart.Data> for LineChart/BarChart and
+ *                    ObservableList<PieChart.Data> for the PieChart.
+ * DATA STRUCTURES: ObservableList<RecordRow> bound to TableView;
+ *                  ObservableList<XYChart.Data<Number,Number>> for the maize
+ *                  loss line chart; ObservableList<XYChart.Data<String,Number>>
+ *                  for the outcomes bar chart; ObservableList<PieChart.Data>
+ *                  for the alert distribution pie chart.
  * ALGORITHMS: None — simulation state machine lives in SimulationRunner.
  *
  * Compiled only when JavaFX is on the classpath; safe to omit in console
@@ -50,12 +70,31 @@ import javafx.stage.Stage;
  */
 public class GuiApp extends Application {
 
-    private final SimulationRunner runner   = new SimulationRunner();
-    private final ReportGenerator reporter  = new ReportGenerator();
-    private final RecordStore files         = new FileHandler();
+    private final SimulationRunner    runner     = new SimulationRunner();
+    private final ReportGenerator     reporter   = new ReportGenerator();
+    private final RecordStore         files      = new FileHandler();
+    private final StorageLossSimulator storageSim = new StorageLossSimulator();
 
     private final ObservableList<RecordRow> rows = FXCollections.observableArrayList();
     private final TextArea reportArea = new TextArea();
+
+    // -------------------------------------------------------------------------
+    // Chart fields — axes initialised here so charts can be constructed inline.
+    // Titles and axis labels are applied in buildChartsTab() after the JavaFX
+    // scene graph is fully wired.
+    // -------------------------------------------------------------------------
+
+    private final NumberAxis  lossXAxis = new NumberAxis();
+    private final NumberAxis  lossYAxis = new NumberAxis();
+    private final LineChart<Number, Number> maizeLossChart =
+            new LineChart<>(lossXAxis, lossYAxis);
+
+    private final CategoryAxis outXAxis = new CategoryAxis();
+    private final NumberAxis   outYAxis = new NumberAxis();
+    private final BarChart<String, Number> outcomeChart =
+            new BarChart<>(outXAxis, outYAxis);
+
+    private final PieChart alertChart = new PieChart();
 
     public static void launchApp(String[] args) {
         Application.launch(GuiApp.class, args);
@@ -69,15 +108,16 @@ public class GuiApp extends Application {
         tabs.getTabs().add(buildInputTab());
         tabs.getTabs().add(buildResultsTab());
         tabs.getTabs().add(buildReportsTab());
+        tabs.getTabs().add(buildChartsTab());
 
         Scene scene = new Scene(tabs, 900, 600);
         stage.setScene(scene);
         stage.show();
     }
 
-    // -----------------------------------------------------------------
+    // -------------------------------------------------------------------------
     // Tab 1: Inputs
-    // -----------------------------------------------------------------
+    // -------------------------------------------------------------------------
     private Tab buildInputTab() {
         GridPane grid = new GridPane();
         grid.setHgap(8); grid.setVgap(8); grid.setPadding(new Insets(16));
@@ -86,14 +126,14 @@ public class GuiApp extends Application {
         commodity.getItems().addAll("Maize", "Tomato");
         commodity.setValue("Maize");
 
-        TextField production = new TextField("10000");
-        TextField demand     = new TextField("8000");
-        TextField price      = new TextField("7000");
-        TextField periods    = new TextField("6");
+        TextField production  = new TextField("10000");
+        TextField demand      = new TextField("8000");
+        TextField price       = new TextField("7000");
+        TextField periods     = new TextField("6");
         ComboBox<String> storageType = new ComboBox<>();
         storageType.getItems().addAll("cold", "open");
         storageType.setValue("open");
-        TextField extra = new TextField("3"); // monthly loss % or shelf-life days
+        TextField extra = new TextField("14"); // monthly loss % (Maize) or shelf-life days (Tomato)
 
         int r = 0;
         grid.add(new Label("Commodity:"),            0, r); grid.add(commodity,    1, r++);
@@ -110,13 +150,20 @@ public class GuiApp extends Application {
                 rows.clear();
                 reportArea.clear();
                 if ("Maize".equals(commodity.getValue())) {
-                    runMaize(parseD(production), parseD(demand), parseD(price),
-                             parseI(periods), parseD(extra));
+                    double prod = parseD(production);
+                    double dem  = parseD(demand);
+                    double prc  = parseD(price);
+                    int    mos  = parseI(periods);
+                    double loss = parseD(extra);
+                    runMaize(prod, dem, prc, mos, loss);
+                    // Reconstruct same Maize used internally by runMaize for chart data
+                    refreshCharts(new Maize(prod, prod * 1.2, 12.5, prc, loss), mos);
                 } else {
                     StorageType st = StorageType.valueOf(
                             storageType.getValue().trim().toUpperCase());
                     runTomato(parseD(production), parseD(demand), parseD(price),
-                              parseI(periods), st, parseD(extra));
+                              parseI(periods), st, parseI(extra));
+                    refreshCharts(null, 0);
                 }
             } catch (Exception ex) {
                 reportArea.setText("Error: " + ex.getMessage());
@@ -141,9 +188,9 @@ public class GuiApp extends Application {
         return tab;
     }
 
-    // -----------------------------------------------------------------
+    // -------------------------------------------------------------------------
     // Tab 2: Results table
-    // -----------------------------------------------------------------
+    // -------------------------------------------------------------------------
     private Tab buildResultsTab() {
         TableView<RecordRow> table = new TableView<>(rows);
         table.getColumns().add(col("Month",         "monthNumber",          60));
@@ -171,9 +218,9 @@ public class GuiApp extends Application {
         return c;
     }
 
-    // -----------------------------------------------------------------
+    // -------------------------------------------------------------------------
     // Tab 3: Reports text area
-    // -----------------------------------------------------------------
+    // -------------------------------------------------------------------------
     private Tab buildReportsTab() {
         reportArea.setEditable(false);
         VBox box = new VBox(reportArea);
@@ -184,9 +231,120 @@ public class GuiApp extends Application {
         return tab;
     }
 
-    // -----------------------------------------------------------------
+    // -------------------------------------------------------------------------
+    // Tab 4: Charts
+    // -------------------------------------------------------------------------
+
+    /**
+     * Builds the Charts tab containing three stacked visualisations inside a
+     * ScrollPane. Each chart is a class field so refreshCharts() can repopulate
+     * it without rebuilding the scene graph.
+     */
+    private Tab buildChartsTab() {
+        // --- Chart 1: Maize Loss Schedule (LineChart) ---
+        maizeLossChart.setTitle("Maize Stock — Cumulative Storage Loss");
+        lossXAxis.setLabel("Months stored");
+        lossYAxis.setLabel("Remaining tonnage");
+        maizeLossChart.setPrefHeight(280);
+        maizeLossChart.setAnimated(false);
+        maizeLossChart.setLegendVisible(true);
+        // Start hidden until a maize simulation runs
+        maizeLossChart.setVisible(false);
+        maizeLossChart.setManaged(false);
+
+        // --- Chart 2: Monthly Outcomes (BarChart) ---
+        outcomeChart.setTitle("Monthly Outcomes — Production vs Waste");
+        outXAxis.setLabel("Month");
+        outYAxis.setLabel("Tons");
+        outcomeChart.setPrefHeight(280);
+        outcomeChart.setAnimated(false);
+
+        // --- Chart 3: Policy Alert Distribution (PieChart) ---
+        alertChart.setTitle("Policy Alert Distribution (this season)");
+        alertChart.setPrefHeight(280);
+        alertChart.setAnimated(false);
+        alertChart.setLegendVisible(true);
+
+        VBox chartBox = new VBox(10, maizeLossChart, outcomeChart, alertChart);
+        chartBox.setPadding(new Insets(8));
+
+        ScrollPane scroll = new ScrollPane(chartBox);
+        scroll.setFitToWidth(true);
+
+        Tab tab = new Tab("Charts", scroll);
+        tab.setClosable(false);
+        return tab;
+    }
+
+    /**
+     * Clears all three charts and repopulates them from the current state of
+     * {@code rows}. Called at the end of every simulation run.
+     *
+     * <p>The maize loss schedule (Chart 1) is only meaningful for maize runs.
+     * When {@code lastMaize} is null (tomato run), the line chart is hidden and
+     * removed from layout so the bar and pie charts fill the visible area.
+     *
+     * @param lastMaize the Maize object used in this run, or null for tomato
+     * @param months    number of months simulated (ignored when lastMaize is null)
+     */
+    private void refreshCharts(Maize lastMaize, int months) {
+        // --- Chart 1: Maize Loss Schedule ---
+        maizeLossChart.getData().clear();
+        if (lastMaize != null) {
+            maizeLossChart.setVisible(true);
+            maizeLossChart.setManaged(true);
+            XYChart.Series<Number, Number> lossSeries = new XYChart.Series<>();
+            lossSeries.setName("Remaining stock (tons)");
+            List<Double> schedule = storageSim.getMaizeLossSchedule(lastMaize, months);
+            for (int i = 0; i < schedule.size(); i++) {
+                lossSeries.getData().add(new XYChart.Data<>(i, schedule.get(i)));
+            }
+            maizeLossChart.getData().add(lossSeries);
+        } else {
+            maizeLossChart.setVisible(false);
+            maizeLossChart.setManaged(false);
+        }
+
+        // --- Chart 2: Monthly Outcomes (Production vs Waste) ---
+        outcomeChart.getData().clear();
+        XYChart.Series<String, Number> prodSeries  = new XYChart.Series<>();
+        XYChart.Series<String, Number> wasteSeries = new XYChart.Series<>();
+        prodSeries.setName("Production");
+        wasteSeries.setName("Waste");
+        for (RecordRow rr : rows) {
+            String monthLabel = "Month " + rr.getMonthNumber();
+            prodSeries.getData().add(new XYChart.Data<>(monthLabel, rr.getProduction()));
+            wasteSeries.getData().add(new XYChart.Data<>(monthLabel, rr.getWaste()));
+        }
+        outcomeChart.getData().addAll(prodSeries, wasteSeries);
+
+        // --- Chart 3: Policy Alert Distribution ---
+        alertChart.getData().clear();
+        int critical = 0, warning = 0, info = 0;
+        for (RecordRow rr : rows) {
+            String alerts = rr.getPolicyAlerts();
+            if (alerts == null || alerts.isEmpty()) continue;
+            for (String raw : alerts.split(";")) {
+                String a = raw.trim();
+                if (a.isEmpty()) continue;
+                if (a.contains("ALERT") || a.contains("CRITICAL") || a.contains("RISK HIGH")) {
+                    critical++;
+                } else if (a.contains("WARNING") || a.contains("REQUIRED") || a.contains("BREACHED")) {
+                    warning++;
+                } else {
+                    info++;
+                }
+            }
+        }
+        // Omit zero-count slices so the legend stays clean
+        if (critical > 0) alertChart.getData().add(new PieChart.Data("CRITICAL", critical));
+        if (warning  > 0) alertChart.getData().add(new PieChart.Data("WARNING",  warning));
+        if (info     > 0) alertChart.getData().add(new PieChart.Data("INFO",     info));
+    }
+
+    // -------------------------------------------------------------------------
     // Simulation methods — collect data, delegate to SimulationRunner
-    // -----------------------------------------------------------------
+    // -------------------------------------------------------------------------
     private void runMaize(double production, double demand, double price,
                           int months, double monthlyLoss) {
         Maize maize = new Maize(production, production * 1.2, 12.5, price, monthlyLoss);
@@ -199,9 +357,9 @@ public class GuiApp extends Application {
     }
 
     private void runTomato(double production, double demand, double pricePerCrate,
-                           int days, StorageType storageType, double spoilageRate) {
+                           int days, StorageType storageType, int shelfLifeDays) {
         double pricePerTon = pricePerCrate * 40.0;
-        Tomato t = new Tomato(production, 14, storageType, spoilageRate, pricePerCrate);
+        Tomato t = new Tomato(production, shelfLifeDays, storageType, 5.0, pricePerCrate);
         java.util.List<SimulationRecord> records =
                 runner.runTomatoSimulation(t, demand, days, pricePerTon);
         for (SimulationRecord rec : records) {

@@ -6,22 +6,28 @@ package agritwin.model;
  *          perishable, so this class tracks shelf-life and storage type
  *          (cold vs open) as a type-safe enum, which drives the spoilage
  *          calculation in the service layer.
- * OOP CONCEPTS USED: Encapsulation; Abstraction; Type-safety via the
- *                    StorageType enum (eliminates mis-spelling bugs that a
- *                    plain String field cannot prevent at compile time);
- *                    Input validation in setters enforces non-negative values.
- * DATA STRUCTURES: POJO — placed inside ArrayList<Tomato> when needed.
+ * OOP CONCEPTS USED: Encapsulation; Abstraction; Inheritance — extends Commodity
+ *                    to share productionVolume / price fields and their
+ *                    validation, avoiding code duplication with Maize;
+ *                    Polymorphism — getPricePerTon() is overridden to document
+ *                    the crate-to-ton derivation (crate price × 40);
+ *                    Type-safety via the StorageType enum (eliminates
+ *                    mis-spelling bugs that a plain String field cannot prevent
+ *                    at compile time).
+ * DATA STRUCTURES: POJO — placed inside ArrayList<Tomato> (or ArrayList<Commodity>)
  * ALGORITHMS: None directly; consumed by SupplyDemandEngine and
  *             StorageLossSimulator.
  */
-public class Tomato {
+public class Tomato extends Commodity {
 
-    // --- Private attributes (encapsulation) ---
-    private double productionVolume;     // tons produced this season
+    // --- Tomato-specific attributes (productionVolume and price are in Commodity) ---
     private int shelfLifeDays;           // expected days before spoilage onset
     private StorageType storageType;     // COLD or OPEN (enum, not String)
     private double spoilageRate;         // % spoiled per day at base rate
     private double marketPricePerCrate;  // ZMW per crate (~25 kg)
+
+    // price (inherited from Commodity) is kept equal to marketPricePerCrate * 40
+    // via setMarketPricePerCrate, so getPricePerTon() always returns the correct value.
 
     /** Default constructor for use with later setter calls. */
     public Tomato() {
@@ -37,7 +43,7 @@ public class Tomato {
                   StorageType storageType,
                   double spoilageRate,
                   double marketPricePerCrate) {
-        setProductionVolume(productionVolume);
+        setProductionVolume(productionVolume); // inherited validation from Commodity
         setShelfLifeDays(shelfLifeDays);
         setStorageType(storageType);
         setSpoilageRate(spoilageRate);
@@ -45,18 +51,24 @@ public class Tomato {
     }
 
     // --- Getters ---
-    public double      getProductionVolume()   { return productionVolume; }
-    public int         getShelfLifeDays()      { return shelfLifeDays; }
-    public StorageType getStorageType()        { return storageType; }
-    public double      getSpoilageRate()       { return spoilageRate; }
-    public double      getMarketPricePerCrate(){ return marketPricePerCrate; }
+    // getProductionVolume() is public final, inherited from Commodity
+    public int         getShelfLifeDays()       { return shelfLifeDays; }
+    public StorageType getStorageType()         { return storageType; }
+    public double      getSpoilageRate()        { return spoilageRate; }
+    public double      getMarketPricePerCrate() { return marketPricePerCrate; }
+
+    /**
+     * Returns the per-ton price derived from the crate price.
+     * One metric ton of tomatoes ≈ 40 crates at ~25 kg each.
+     * Overrides Commodity.getPricePerTon() to document the derivation explicitly.
+     */
+    @Override
+    public double getPricePerTon() {
+        return marketPricePerCrate * 40.0;
+    }
 
     // --- Setters with validation ---
-    public void setProductionVolume(double productionVolume) {
-        if (productionVolume < 0)
-            throw new IllegalArgumentException("production volume must be >= 0");
-        this.productionVolume = productionVolume;
-    }
+    // setProductionVolume(double) is inherited (with validation) from Commodity
 
     public void setShelfLifeDays(int shelfLifeDays) {
         if (shelfLifeDays < 0)
@@ -78,6 +90,19 @@ public class Tomato {
         if (marketPricePerCrate < 0)
             throw new IllegalArgumentException("market price per crate must be >= 0");
         this.marketPricePerCrate = marketPricePerCrate;
+        this.price = marketPricePerCrate * 40.0; // keep inherited price field in sync
+    }
+
+    /** Total value of this harvest at the current per-ton price. */
+    @Override
+    public double estimateTotalValue() {
+        return productionVolume * getPricePerTon();
+    }
+
+    /** Commodity label used in SimulationRecord and reports. */
+    @Override
+    public String getCommodityName() {
+        return "Tomato";
     }
 
     /** Human-readable summary used by ReportGenerator. */

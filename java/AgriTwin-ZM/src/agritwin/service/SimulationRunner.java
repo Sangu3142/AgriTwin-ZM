@@ -1,5 +1,6 @@
 package agritwin.service;
 
+import agritwin.model.Commodity;
 import agritwin.model.Maize;
 import agritwin.model.SimulationRecord;
 import agritwin.model.Tomato;
@@ -18,7 +19,10 @@ import java.util.List;
  * OOP CONCEPTS USED: Encapsulation; Single-Responsibility (the simulation
  *                    loop lives here only, nowhere in any UI class);
  *                    Composition (holds SupplyDemandEngine, StorageLossSimulator
- *                    and PolicyEngine as collaborators).
+ *                    and PolicyEngine as collaborators);
+ *                    Polymorphism — commodity name and price are accessed via
+ *                    the Commodity supertype (getCommodityName(), getPricePerTon())
+ *                    so future commodity types plug in without code changes here.
  * DATA STRUCTURES: ArrayList<SimulationRecord> returned per run.
  * ALGORITHMS: Compounded monthly loss loop for maize; single-period waste
  *             calculation for tomatoes — identical formulae to those previously
@@ -38,8 +42,10 @@ public class SimulationRunner {
      */
     public List<SimulationRecord> runMaizeSimulation(Maize m, double demand, int months) {
         List<SimulationRecord> records = new ArrayList<>();
-        double currentStock  = m.getProductionVolume();
-        double currentPrice  = m.getPricePerTon();
+        // Use Commodity reference for polymorphic access to name and price
+        Commodity c     = m;
+        double currentStock  = c.getProductionVolume();
+        double currentPrice  = c.getPricePerTon();
         double monthlyLoss   = m.getLossPercentagePerMonth();
         double storageCap    = m.getStorageCapacity();
         double moisture      = m.getMoistureLevel();
@@ -64,8 +70,8 @@ public class SimulationRunner {
             String alerts  = policy.evaluateAll(currentStock, surplus, remainingAfterLoss,
                                                 month, -1, -1);
 
-            records.add(new SimulationRecord(month, "Maize", remainingAfterLoss, monthlyDemand,
-                    surplus, waste, revenue, fsi, alerts));
+            records.add(new SimulationRecord(month, c.getCommodityName(),
+                    remainingAfterLoss, monthlyDemand, surplus, waste, revenue, fsi, alerts));
         }
         return records;
     }
@@ -80,8 +86,10 @@ public class SimulationRunner {
                                                        int daysBeforeSale,
                                                        double pricePerTon) {
         List<SimulationRecord> records = new ArrayList<>();
+        // Use Commodity reference for polymorphic access to the commodity name
+        Commodity c     = t;
         double waste    = storage.simulateTomatoSpoilage(t, daysBeforeSale);
-        double saleable = Math.max(0.0, t.getProductionVolume() - waste);
+        double saleable = Math.max(0.0, c.getProductionVolume() - waste);
         double sold     = Math.min(saleable, demand);
         double revenue  = supply.calculateRevenue(sold, pricePerTon);
         double surplus  = supply.calculateSurplus(saleable, demand);
@@ -89,7 +97,7 @@ public class SimulationRunner {
         String alerts   = policy.evaluateAll(Double.POSITIVE_INFINITY, surplus, saleable,
                                               -1, daysBeforeSale, t.getShelfLifeDays());
 
-        records.add(new SimulationRecord(1, "Tomato", saleable, demand,
+        records.add(new SimulationRecord(1, c.getCommodityName(), saleable, demand,
                 surplus, waste, revenue, fsi, alerts));
         return records;
     }

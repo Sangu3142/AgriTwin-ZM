@@ -17,9 +17,10 @@ import java.util.Scanner;
 /**
  * MODULE: Console User Interface
  * PURPOSE: Menu-driven entry point that lets the user run maize / tomato
- *          simulations, view monthly reports, save a simulation to disk and
- *          reload a previously saved one. All simulation logic is delegated
- *          to SimulationRunner; this file handles only I/O and flow control.
+ *          simulations, view monthly reports, save a simulation to disk,
+ *          reload a previously saved one, and export a season summary as CSV.
+ *          All simulation logic is delegated to SimulationRunner; this file
+ *          handles only I/O and flow control.
  * OOP CONCEPTS USED: Composition (holds SimulationRunner, ReportGenerator and
  *                    RecordStore instances); Encapsulation; Polymorphism — files
  *                    is declared as RecordStore (interface), not the concrete
@@ -52,11 +53,12 @@ public class ConsoleUI {
                 printMenu();
                 String choice = readLine("Choose an option: ").trim();
                 switch (choice) {
-                    case "1": runMaizeSimulation();     break;
-                    case "2": runTomatoSimulation();    break;
-                    case "3": viewReports();            break;
-                    case "4": loadPreviousSimulation(); break;
-                    case "5": saveCurrentSimulation();  break;
+                    case "1": runMaizeSimulation();        break;
+                    case "2": runTomatoSimulation();       break;
+                    case "3": viewReports();               break;
+                    case "4": loadPreviousSimulation();    break;
+                    case "5": saveCurrentSimulation();     break;
+                    case "7": exportCsv();                 break;
                     case "0":
                     case "6":
                         running = false;
@@ -78,14 +80,15 @@ public class ConsoleUI {
 
     private void printMenu() {
         System.out.println();
-        System.out.println("---------------- MAIN MENU -----------------");
+        System.out.println("---------------- MAIN MENU (options 0-7) -------------------");
         System.out.println("  1) Run Maize Simulation");
         System.out.println("  2) Run Tomato Simulation");
         System.out.println("  3) View Reports (this session)");
         System.out.println("  4) Load Previous Simulation (from file)");
         System.out.println("  5) Save Current Simulation (to file)");
         System.out.println("  6) Exit");
-        System.out.println("--------------------------------------------");
+        System.out.println("  7) Export season summary (CSV)");
+        System.out.println("------------------------------------------------------------");
     }
 
     // ---------------------------------------------------------------------
@@ -150,6 +153,7 @@ public class ConsoleUI {
         }
         System.out.println("\nAll records this session:");
         for (SimulationRecord r : history) reporter.generateMonthlyReport(r);
+        System.out.println(reporter.generateSeasonSummary(history));
     }
 
     private void offerExport() {
@@ -192,6 +196,21 @@ public class ConsoleUI {
             for (SimulationRecord r : loaded) reporter.generateMonthlyReport(r);
         } catch (IOException ex) {
             System.out.println("ERROR loading simulation: " + ex.getMessage());
+        }
+    }
+
+    private void exportCsv() {
+        if (history.isEmpty()) {
+            System.out.println("(no records yet -- run a simulation first)");
+            return;
+        }
+        String path = readLine("CSV output filename [season_summary.csv]: ").trim();
+        if (path.isEmpty()) path = "season_summary.csv";
+        try {
+            reporter.exportToCsv(history, path);
+            System.out.println("CSV exported to " + path + " (" + history.size() + " records)");
+        } catch (IOException ex) {
+            System.out.println("ERROR writing CSV: " + ex.getMessage());
         }
     }
 
