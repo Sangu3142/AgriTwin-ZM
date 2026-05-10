@@ -7,21 +7,22 @@ import java.lang.reflect.Method;
 /**
  * MODULE: Application Entry Point
  * PURPOSE: Boots AgriTwin-ZM. Defaults to the console front-end so the
- *          program is always runnable with a vanilla JDK. If the user passes
- *          --gui as an argument, JavaFX's GuiApp is launched via reflection,
- *          keeping the JavaFX dependency optional rather than mandatory.
+ * program is always runnable with a vanilla JDK. If the user passes
+ * --gui as an argument, JavaFX's GuiApp is launched via reflection,
+ * keeping the JavaFX dependency optional rather than mandatory.
  * OOP CONCEPTS USED: Composition (delegates to ConsoleUI / GuiApp); Reflection
- *                    used purely to keep the GUI an optional dependency.
+ * used purely to keep the GUI an optional dependency.
  * DATA STRUCTURES: String[] (command-line args).
  * ALGORITHMS: Simple argument scan.
  *
  * USAGE:
- *   java -cp out agritwin.Main          (console)
- *   java -cp out agritwin.Main --gui    (JavaFX, requires javafx libs)
+ * java -cp out agritwin.Main (console)
+ * java -cp out agritwin.Main --gui (JavaFX, requires javafx libs)
  */
 public final class Main {
 
-    private Main() {} // utility class -- no instances
+    private Main() {
+    } // utility class -- no instances
 
     public static void main(String[] args) {
         if (hasFlag(args, "--gui")) {
@@ -33,9 +34,11 @@ public final class Main {
 
     /** Returns true if the given flag is present in args. */
     private static boolean hasFlag(String[] args, String flag) {
-        if (args == null) return false;
+        if (args == null)
+            return false;
         for (String a : args) {
-            if (flag.equalsIgnoreCase(a)) return true;
+            if (flag.equalsIgnoreCase(a))
+                return true;
         }
         return false;
     }

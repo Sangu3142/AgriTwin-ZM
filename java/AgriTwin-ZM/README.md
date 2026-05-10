@@ -7,7 +7,7 @@
 ![Java](https://img.shields.io/badge/Java-11%2B-007396?style=flat&logo=openjdk&logoColor=white)
 ![JavaFX](https://img.shields.io/badge/JavaFX-17%2B-0277BD?style=flat&logo=java&logoColor=white)
 ![Build](https://img.shields.io/badge/build-passing-2D8648?style=flat)
-![Tests](https://img.shields.io/badge/tests-7%2F7%20passing-2D8648?style=flat)
+![Tests](https://img.shields.io/badge/tests-18%2F18%20passing-2D8648?style=flat)
 ![Course](https://img.shields.io/badge/BIT%20213%20%2F%20BSC%20120-University%20of%20Lusaka-0F3B1E?style=flat)
 ![Status](https://img.shields.io/badge/version-1.0-FEF3D7?style=flat&labelColor=B36B00&color=FEF3D7)
 
@@ -121,12 +121,12 @@ Number of months to simulate: [6] 3
 ## Tech stack
 
 | Layer | Technology | Notes |
-|---|---|---|
+| --- | --- | --- |
 | Language | Java 11+ | Vanilla JDK, no external runtime libraries |
 | Optional GUI | JavaFX 17+ | Loaded reflectively — console always works without it |
 | Build | `javac` + `.bat` scripts | No Maven, Gradle, or JUnit required |
 | Persistence | Pipe-delimited text files | Human-readable, hand-inspectable |
-| Testing | Plain-main `TestRunner` | 7 unit tests, no third-party dependencies |
+| Testing | Plain-main `TestRunner` | 18 unit tests, no third-party dependencies |
 | IDE | Apache NetBeans (any version) | Project layout is also IntelliJ / Eclipse friendly |
 
 **Why no external libraries?** This is a BIT 213 / BSC 120 academic
@@ -138,33 +138,42 @@ more than a working JDK installation.
 
 ## Project structure
 
-```
+```text
 AgriTwin-ZM/
 ├── src/
 │   └── agritwin/
-│       ├── Main.java                    ← entry point (console default)
-│       ├── TestRunner.java              ← 7 unit tests
+│       ├── Main.java                         ← entry point (console default)
+│       ├── TestRunner.java                   ← 18 unit tests
 │       ├── model/
-│       │   ├── Maize.java               ← maize commodity POJO
-│       │   ├── Tomato.java              ← tomato commodity POJO
-│       │   └── SimulationRecord.java    ← per-month snapshot DTO
+│       │   ├── Commodity.java                ← abstract base class
+│       │   ├── Maize.java                    ← maize commodity POJO
+│       │   ├── Tomato.java                   ← tomato commodity POJO
+│       │   ├── SimulationRecord.java         ← per-month snapshot DTO
+│       │   └── StorageType.java              ← COLD / OPEN enum
 │       ├── service/
-│       │   ├── SupplyDemandEngine.java  ← surplus, revenue, price elasticity, FSI
-│       │   ├── StorageLossSimulator.java ← compounded loss + spoilage
-│       │   ├── PolicyEngine.java        ← FRA / export / storage rules
-│       │   └── ReportGenerator.java     ← console + .txt report output
+│       │   ├── SupplyDemandEngine.java       ← surplus, revenue, price elasticity, FSI
+│       │   ├── StorageLossSimulator.java     ← compounded loss + spoilage
+│       │   ├── PolicyEngine.java             ← FRA / export / storage rules
+│       │   ├── ReportGenerator.java          ← console + .txt + .csv report output
+│       │   └── Severity.java                 ← INFO / WARNING / CRITICAL enum
 │       ├── util/
-│       │   └── FileHandler.java         ← save / load .dat files
+│       │   ├── FileHandler.java              ← save / load .dat files
+│       │   └── RecordStore.java              ← persistence interface (DI seam)
 │       └── ui/
-│           ├── ConsoleUI.java           ← Scanner-based menu
-│           └── GuiApp.java              ← optional JavaFX window
+│           ├── ConsoleUI.java                ← Scanner-based menu
+│           ├── GuiApp.java                   ← optional JavaFX window
+│           ├── DashboardController.java      ← 6-page JavaFX dashboard
+│           └── components/
+│               ├── AlertPanel.java           ← FRA policy status panel
+│               ├── SidebarMenu.java          ← sidebar navigation
+│               └── StatCard.java             ← metric card with progress bar
 ├── docs/
-│   ├── UML_ClassDiagram.puml            ← PlantUML source
-│   └── UML_ClassDiagram.txt             ← text-only fallback
-├── build.bat                            ← Windows build (console-only)
-├── build_with_javafx.bat                ← Windows build (with JavaFX)
-├── BUILD.txt                            ← plain-text build instructions
-└── README.md                            ← this file
+│   ├── UML_ClassDiagram.puml                 ← PlantUML source
+│   └── UML_ClassDiagram.txt                  ← text-only fallback
+├── build.bat                                 ← Windows build (console-only)
+├── build_with_javafx.bat                     ← Windows build (with JavaFX)
+├── BUILD.txt                                 ← plain-text build instructions
+└── README.md                                 ← this file
 ```
 
 Every `.java` file starts with a comment block listing its module, purpose,
@@ -197,12 +206,12 @@ On Windows, just run **`build.bat`** instead.
 ### Build with the JavaFX GUI
 
 ```bash
-export JAVAFX_LIB=/path/to/javafx-sdk-21/lib
+export JAVAFX_LIB=/path/to/javafx-sdk-25/javafx-sdk-25.0.3/lib
 javac --module-path "$JAVAFX_LIB" --add-modules javafx.controls -d out \
       $(find src -name "*.java")
 ```
 
-On Windows: set `JAVAFX_LIB` and run **`build_with_javafx.bat`**.
+On Windows: set `JAVAFX_LIB=C:\javafx-sdk-25\javafx-sdk-25.0.3\lib` and run **`build_with_javafx.bat`**.
 
 ---
 
@@ -224,11 +233,14 @@ java --module-path "$JAVAFX_LIB" --add-modules javafx.controls \
      -cp out agritwin.Main --gui
 ```
 
-A window opens with three tabs:
+A window opens with a sidebar and six pages:
 
-1. **Inputs** — pick the commodity, enter production / demand / price.
-2. **Results** — live `TableView` of every simulation record produced.
-3. **Reports** — text mirror of the console's per-month report blocks.
+1. **Dashboard** — commodity tabs, stat cards, live/demo toggle, recent simulations, FRA policy panel.
+2. **Simulation** — input form with maize/tomato tabs, Run button, stat cards, bar/line/pie charts, policy evaluation.
+3. **Storage** — compounded maize storage-loss chart across three moisture levels.
+4. **Policy Alerts** — interactive FRA/export/storage/shelf-life checker with custom inputs.
+5. **Reports** — full textual season summary generated after each simulation run.
+6. **Settings** — application version, build info, and policy threshold reference.
 
 If JavaFX isn't on the classpath, `Main` falls back to the console UI
 gracefully — never crashes.
@@ -247,21 +259,35 @@ Expected output:
 ============================================================
  AgriTwin-ZM v1.0 -- Test Runner
 ============================================================
-  [PASS] Test 1 (Surplus 10000-8000)        expected=2000.0  actual=2000.0
-  [PASS] Test 2 (oversupply lowers price)   expected=<7000   actual=6860.00
-  [PASS] Test 3 (Maize 3% loss x3 months)   expected=9126.73 actual=9126.73
-  [PASS] Test 4 (cold < open spoilage)      expected=cold<open  actual=cold=12.00 open=20.00
-  [PASS] Test 5 (FSI when prod<demand)      expected=<100%   actual=80.00%
-  [PASS] Test 6 (FRA alert at 400k)         expected=RESERVE ALERT  actual=RESERVE ALERT (...)
-  [PASS] Test 7 (save + reload roundtrip)   expected=2 records, fields equal  actual=loaded=2 fieldsOk=true
+  [PASS] Test 1  (Surplus 10000-8000)
+  [PASS] Test 2  (oversupply lowers price)
+  [PASS] Test 3  (Maize 3% loss x3 months)
+  [PASS] Test 4  (cold < open spoilage)
+  [PASS] Test 5  (FSI when prod<demand)
+  [PASS] Test 6  (FRA alert at 400k)
+  [PASS] Test 7  (save + reload roundtrip)
+  [PASS] Test 8  (zero days -> zero waste)
+  [PASS] Test 9  (negative production throws)
+  [PASS] Test 10 (load missing file throws)
+  [PASS] Test 11 (infinite stock -> FRA RESERVE OK)
+  [PASS] Test 12 (zero surplus keeps price)
+  [PASS] Test 13 (dry-season demand > wet-season demand)
+  [PASS] Test 14 (moisture 18% leaves less than 12%)
+  [PASS] Test 15 (loss schedule size = 7 for 6 months)
+  [PASS] Test 16 (aflatoxin HIGH at moisture=16, months=3)
+  [PASS] Test 17 (season summary total production = 18000)
+  [PASS] Test 18 (CSV header starts with monthNumber,commodityName)
 ------------------------------------------------------------
- Results: 7 passed, 0 failed
+ Results: 18 passed, 0 failed
 ============================================================
 ```
 
-The seven tests cover surplus calculation, price elasticity, compounded
-maize loss, cold vs open tomato spoilage, food security indicator,
-FRA reserve alert, and a file save-and-reload round-trip.
+The 18 tests cover: surplus calculation, price elasticity, compounded maize
+loss, cold vs open tomato spoilage, food security indicator, FRA reserve alert,
+file save-and-reload round-trip, zero-days waste, validation exceptions, missing
+file IOException, infinite stock, zero-surplus price, seasonal demand modelling,
+moisture-adjusted loss, loss schedule size, aflatoxin detection, season summary
+aggregation, and CSV export header.
 
 In NetBeans: open `TestRunner.java`, right-click anywhere in the editor →
 **Run File** (`Shift+F6`).
@@ -274,7 +300,7 @@ AgriTwin-ZM follows the **MVC + Service Layer** pattern. Calls only flow
 downward — a class in the UI layer can call a class in the Service layer,
 but no class in the Model layer ever reaches up into the UI.
 
-```
+```text
 ┌──────────────────────────────────────────────────────────────┐
 │  ENTRY POINT     Main · TestRunner                           │
 ├──────────────────────────────────────────────────────────────┤
@@ -329,7 +355,7 @@ Three documents accompany the codebase, each written for a different
 reader:
 
 | Document | For | What it covers |
-|---|---|---|
+| --- | --- | --- |
 | `README.md` | Anyone visiting the repo | This file. Project overview, how to run it. |
 | Code Explanation Guide *(separate `.docx`)* | The 10 team members | Per-role walkthroughs and Q&A prep for the May 13 pitch. |
 | Developer Documentation *(separate `.docx`)* | A future maintainer | Full module API reference, data flow, extension points, gotchas. |

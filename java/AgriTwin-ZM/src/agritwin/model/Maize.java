@@ -39,11 +39,16 @@ public class Maize extends Commodity {
                  double moistureLevel,
                  double pricePerTon,
                  double lossPercentagePerMonth) {
-        setProductionVolume(productionVolume); // inherited validation from Commodity
-        setStorageCapacity(storageCapacity);
-        setMoistureLevel(moistureLevel);
-        setPricePerTon(pricePerTon);
-        setLossPercentagePerMonth(lossPercentagePerMonth);
+        if (productionVolume < 0)        throw new IllegalArgumentException("production volume must be >= 0");
+        if (storageCapacity < 0)         throw new IllegalArgumentException("storage capacity must be >= 0");
+        if (moistureLevel < 0)           throw new IllegalArgumentException("moisture level must be >= 0");
+        if (pricePerTon < 0)             throw new IllegalArgumentException("price per ton must be >= 0");
+        if (lossPercentagePerMonth < 0)  throw new IllegalArgumentException("loss percentage per month must be >= 0");
+        this.productionVolume         = productionVolume;
+        this.storageCapacity          = storageCapacity;
+        this.moistureLevel            = moistureLevel;
+        this.price                    = pricePerTon;
+        this.lossPercentagePerMonth   = lossPercentagePerMonth;
     }
 
     // --- Getters ---

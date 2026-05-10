@@ -43,11 +43,16 @@ public class Tomato extends Commodity {
                   StorageType storageType,
                   double spoilageRate,
                   double marketPricePerCrate) {
-        setProductionVolume(productionVolume); // inherited validation from Commodity
-        setShelfLifeDays(shelfLifeDays);
-        setStorageType(storageType);
-        setSpoilageRate(spoilageRate);
-        setMarketPricePerCrate(marketPricePerCrate);
+        if (productionVolume < 0)       throw new IllegalArgumentException("production volume must be >= 0");
+        if (shelfLifeDays < 0)          throw new IllegalArgumentException("shelf life days must be >= 0");
+        if (spoilageRate < 0)           throw new IllegalArgumentException("spoilage rate must be >= 0");
+        if (marketPricePerCrate < 0)    throw new IllegalArgumentException("market price per crate must be >= 0");
+        this.productionVolume       = productionVolume;
+        this.shelfLifeDays          = shelfLifeDays;
+        this.storageType            = storageType;
+        this.spoilageRate           = spoilageRate;
+        this.marketPricePerCrate    = marketPricePerCrate;
+        this.price                  = marketPricePerCrate * 40.0;
     }
 
     // --- Getters ---

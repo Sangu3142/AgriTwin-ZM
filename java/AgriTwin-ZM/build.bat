@@ -14,11 +14,13 @@ echo Compiling AgriTwin-ZM (console-only, no JavaFX)...
 echo (To include the JavaFX GUI, see build_with_javafx.bat)
 echo.
 
-REM Build the file list, EXCLUDING GuiApp.java (which needs JavaFX).
+REM Build the file list, EXCLUDING all JavaFX UI files (which need JavaFX).
+REM   GuiApp.java, DashboardController.java, and ui\components\ all import JavaFX.
+REM   ConsoleUI.java is the only ui\ file that compiles with a vanilla JDK.
 REM This guarantees the console build always succeeds with a vanilla JDK.
 del /q %TEMP%\agritwin_sources.txt 2>nul
 for /R %SRC% %%F in (*.java) do (
-    echo %%F | findstr /I "GuiApp.java" >nul
+    echo %%F | findstr /I /C:"GuiApp.java" /C:"DashboardController.java" /C:"components" >nul
     if errorlevel 1 echo %%F>>%TEMP%\agritwin_sources.txt
 )
 
