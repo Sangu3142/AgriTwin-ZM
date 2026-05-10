@@ -1,0 +1,22 @@
+# AgriTwin-ZM v1.0 simulation file (pipe-delimited)
+# month|commodity|production|demand|surplusOrShortage|waste|revenue|foodSecurityIndicator|policyAlerts
+1|Maize|7000.0|400.0|6600.0|3000.0|40000.0|100.0|RESERVE ALERT (stock 6600t below FRA threshold 500000t); EXPORT REVIEW REQUIRED (surplus 94.3% of production); STORAGE OK
+2|Maize|4620.0|400.0|4220.0|1980.0|36228.57142857143|100.0|RESERVE ALERT (stock 4220t below FRA threshold 500000t); EXPORT REVIEW REQUIRED (surplus 91.3% of production); STORAGE OK
+3|Maize|2954.0|400.0|2554.0|1266.0|32919.38157081014|100.0|RESERVE ALERT (stock 2554t below FRA threshold 500000t); EXPORT REVIEW REQUIRED (surplus 86.5% of production); STORAGE OK
+4|Maize|1787.8|400.0|1387.8|766.2|30073.20348916325|100.0|RESERVE ALERT (stock 1388t below FRA threshold 500000t); EXPORT REVIEW REQUIRED (surplus 77.6% of production); STORAGE OK
+5|Maize|971.4599999999999|400.0|571.4599999999999|416.34000000000003|27738.737005090046|100.0|RESERVE ALERT (stock 571t below FRA threshold 500000t); EXPORT REVIEW REQUIRED (surplus 58.8% of production); STORAGE OK
+6|Maize|400.02199999999993|400.0|0.021999999999934516|171.438|26107.009641232686|100.0|RESERVE ALERT (stock 0t below FRA threshold 500000t); EXPORT OK; STORAGE OK
+7|Maize|0.01539999999995416|400.0|-399.98460000000006|0.006599999999980356|1.0051143433292071|0.00384999999998854|RESERVE ALERT (stock 0t below FRA threshold 500000t); EXPORT OK; STORAGE WARNING (maize stored 7 months; max 6)
+8|Maize|0.0|400.0|-400.0|0.0|0.0|0.0|RESERVE ALERT (stock 0t below FRA threshold 500000t); EXPORT N/A; STORAGE WARNING (maize stored 8 months; max 6)
+9|Maize|0.0|400.0|-400.0|0.0|0.0|0.0|RESERVE ALERT (stock 0t below FRA threshold 500000t); EXPORT N/A; STORAGE WARNING (maize stored 9 months; max 6)
+10|Maize|0.0|400.0|-400.0|0.0|0.0|0.0|RESERVE ALERT (stock 0t below FRA threshold 500000t); EXPORT N/A; STORAGE WARNING (maize stored 10 months; max 6)
+11|Maize|0.0|400.0|-400.0|0.0|0.0|0.0|RESERVE ALERT (stock 0t below FRA threshold 500000t); EXPORT N/A; STORAGE WARNING (maize stored 11 months; max 6)
+12|Maize|0.0|400.0|-400.0|0.0|0.0|0.0|RESERVE ALERT (stock 0t below FRA threshold 500000t); EXPORT N/A; STORAGE WARNING (maize stored 12 months; max 6)
+13|Maize|0.0|400.0|-400.0|0.0|0.0|0.0|RESERVE ALERT (stock 0t below FRA threshold 500000t); EXPORT N/A; STORAGE WARNING (maize stored 13 months; max 6)
+14|Maize|0.0|400.0|-400.0|0.0|0.0|0.0|RESERVE ALERT (stock 0t below FRA threshold 500000t); EXPORT N/A; STORAGE WARNING (maize stored 14 months; max 6)
+15|Maize|0.0|400.0|-400.0|0.0|0.0|0.0|RESERVE ALERT (stock 0t below FRA threshold 500000t); EXPORT N/A; STORAGE WARNING (maize stored 15 months; max 6)
+16|Maize|0.0|400.0|-400.0|0.0|0.0|0.0|RESERVE ALERT (stock 0t below FRA threshold 500000t); EXPORT N/A; STORAGE WARNING (maize stored 16 months; max 6)
+17|Maize|0.0|400.0|-400.0|0.0|0.0|0.0|RESERVE ALERT (stock 0t below FRA threshold 500000t); EXPORT N/A; STORAGE WARNING (maize stored 17 months; max 6)
+18|Maize|0.0|400.0|-400.0|0.0|0.0|0.0|RESERVE ALERT (stock 0t below FRA threshold 500000t); EXPORT N/A; STORAGE WARNING (maize stored 18 months; max 6)
+19|Maize|0.0|400.0|-400.0|0.0|0.0|0.0|RESERVE ALERT (stock 0t below FRA threshold 500000t); EXPORT N/A; STORAGE WARNING (maize stored 19 months; max 6)
+20|Maize|0.0|400.0|-400.0|0.0|0.0|0.0|RESERVE ALERT (stock 0t below FRA threshold 500000t); EXPORT N/A; STORAGE WARNING (maize stored 20 months; max 6)

@@ -31,10 +31,14 @@ import javafx.scene.chart.PieChart;
 import javafx.scene.chart.XYChart;
 import javafx.scene.control.Button;
 import javafx.scene.control.ComboBox;
+import javafx.scene.control.ContextMenu;
 import javafx.scene.control.Label;
+import javafx.scene.control.MenuItem;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
+import javafx.geometry.Side;
+import javafx.scene.input.KeyCode;
 import javafx.scene.effect.DropShadow;
 import javafx.scene.layout.Background;
 import javafx.scene.layout.BackgroundFill;
@@ -140,6 +144,9 @@ public class DashboardController {
     private Tomato                 lastTomato;
     private int                    lastTomatoDays;
 
+    // ── Top-bar search ─────────────────────────────────────────────────────────
+    private TextField searchBar;
+
     // ── Alerts page ────────────────────────────────────────────────────────────
     private TextField alertFldStock, alertFldSurplus, alertFldProd,
                       alertFldMonths, alertFldDays, alertFldShelf;
@@ -219,7 +226,13 @@ public class DashboardController {
         ".table-row-cell:selected{-fx-background-color:#1A2A6C;}" +
         ".table-row-cell:selected .table-cell{-fx-text-fill:#FFFFFF;}" +
         ".table-row-cell:hover{-fx-background-color:#1A3050;}" +
-        ".table-cell{-fx-text-fill:#A0AEC0;-fx-border-color:transparent;}";
+        ".table-cell{-fx-text-fill:#A0AEC0;-fx-border-color:transparent;}" +
+        ".context-menu{-fx-background-color:#111C44;-fx-border-color:#1A2A6C;" +
+            "-fx-border-width:1;-fx-border-radius:8;-fx-background-radius:8;}" +
+        ".menu-item{-fx-background-color:#111C44;}" +
+        ".menu-item .label{-fx-text-fill:#FFFFFF;-fx-font-size:12px;}" +
+        ".menu-item:focused{-fx-background-color:#1A2A6C;}" +
+        ".menu-item:hover{-fx-background-color:#1A2A6C;}";
 
     // ══════════════════════════════════════════════════════════════════════════
     // Entry point
@@ -291,9 +304,52 @@ public class DashboardController {
         barShadow.setColor(Color.color(0, 0, 0, 0.30));
         bar.setEffect(barShadow);
 
-        TextField search = new TextField();
-        search.setPromptText("Search simulations…");
-        search.setPrefWidth(240);
+        searchBar = new TextField();
+        searchBar.setPromptText("Search — alerts, reports, storage…");
+        searchBar.setPrefWidth(260);
+
+        // Navigation search index: {display label, keywords, page index}
+        Object[][] navItems = {
+            {"Dashboard",     new String[]{"dashboard","overview","home","kpi","stats"},        PG_DASHBOARD},
+            {"Simulation",    new String[]{"simulation","simulate","crop","maize","tomato"},    PG_SIMULATION},
+            {"Storage",       new String[]{"storage","warehouse","silo","stock","capacity"},    PG_STORAGE},
+            {"Policy Alerts", new String[]{"alert","policy","fra","reserve","export","check"},  PG_ALERTS},
+            {"Reports",       new String[]{"report","reports","saved","history","analysis"},    PG_REPORTS},
+            {"Information",   new String[]{"info","information","settings","about","system"},   PG_SETTINGS},
+        };
+
+        ContextMenu suggestions = new ContextMenu();
+
+        searchBar.textProperty().addListener((obs, oldVal, newVal) -> {
+            suggestions.getItems().clear();
+            String q = (newVal == null ? "" : newVal.trim().toLowerCase());
+            if (q.isEmpty()) { suggestions.hide(); return; }
+            for (Object[] nav : navItems) {
+                String   navLabel = (String)   nav[0];
+                String[] keywords = (String[]) nav[1];
+                int      pgIdx    = (Integer)  nav[2];
+                boolean  match    = navLabel.toLowerCase().contains(q);
+                if (!match) for (String kw : keywords) if (kw.contains(q)) { match = true; break; }
+                if (match) {
+                    MenuItem mi = new MenuItem(navLabel);
+                    mi.setOnAction(ev -> { searchBar.clear(); selectPage(pgIdx); });
+                    suggestions.getItems().add(mi);
+                }
+            }
+            if (!suggestions.getItems().isEmpty())
+                suggestions.show(searchBar, Side.BOTTOM, 0, 4);
+            else
+                suggestions.hide();
+        });
+
+        searchBar.setOnKeyPressed(ke -> {
+            if (ke.getCode() == KeyCode.ENTER) {
+                if (!suggestions.getItems().isEmpty()) suggestions.getItems().get(0).fire();
+            } else if (ke.getCode() == KeyCode.ESCAPE) {
+                searchBar.clear();
+                suggestions.hide();
+            }
+        });
 
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
@@ -312,7 +368,7 @@ public class DashboardController {
         initials.setTextFill(Color.WHITE);
         StackPane avatarStack = new StackPane(avatar, initials);
 
-        bar.getChildren().addAll(search, spacer, gear, avatarStack);
+        bar.getChildren().addAll(searchBar, spacer, gear, avatarStack);
         return bar;
     }
 
@@ -1133,11 +1189,32 @@ public class DashboardController {
         checkBtn.setPadding(new Insets(12, 20, 12, 20));
         checkBtn.setOnAction(e -> runAlertCheck());
 
+        Button alertClearBtn = new Button("Clear");
+        alertClearBtn.setTextFill(Color.web(TEXT_SEC));
+        alertClearBtn.setFont(Font.font("Segoe UI", FontWeight.BOLD, 13));
+        alertClearBtn.setBackground(bg(INPUT_BG, 8));
+        alertClearBtn.setBorder(new Border(new BorderStroke(Color.web(INPUT_BORDER),
+                BorderStrokeStyle.SOLID, new CornerRadii(8), new BorderWidths(1))));
+        alertClearBtn.setCursor(javafx.scene.Cursor.HAND);
+        alertClearBtn.setPadding(new Insets(12, 20, 12, 20));
+        alertClearBtn.setOnAction(e -> {
+            alertFldStock.clear();
+            alertFldSurplus.clear();
+            alertFldProd.clear();
+            alertFldMonths.clear();
+            alertFldDays.clear();
+            alertFldShelf.clear();
+            alertsResultArea.setText("Run a simulation or click Check Policies to see results.");
+        });
+
+        HBox alertBtnRow = new HBox(12, checkBtn, alertClearBtn);
+        alertBtnRow.setAlignment(Pos.CENTER_LEFT);
+
         alertsResultArea = new TextArea("Run a simulation or click Check Policies to see results.");
         alertsResultArea.setEditable(false);
         alertsResultArea.setPrefRowCount(12);
 
-        page.getChildren().addAll(title, desc, alertFormCard, checkBtn, alertsResultArea);
+        page.getChildren().addAll(title, desc, alertFormCard, alertBtnRow, alertsResultArea);
         return page;
     }
 
