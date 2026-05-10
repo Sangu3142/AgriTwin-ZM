@@ -8,10 +8,11 @@ public class ReportSummary {
     private final double totalRevenue;
     private final double avgFoodSecurity;
     private final int    recordCount;
+    private final String fraStatus;
 
     public ReportSummary(String reportName, String filePath, String commodityType,
                          String dateSaved, double totalRevenue, double avgFoodSecurity,
-                         int recordCount) {
+                         int recordCount, String fraStatus) {
         this.reportName      = reportName;
         this.filePath        = filePath;
         this.commodityType   = commodityType;
@@ -19,6 +20,7 @@ public class ReportSummary {
         this.totalRevenue    = totalRevenue;
         this.avgFoodSecurity = avgFoodSecurity;
         this.recordCount     = recordCount;
+        this.fraStatus       = fraStatus;
     }
 
     public String getReportName()      { return reportName; }
@@ -28,4 +30,5 @@ public class ReportSummary {
     public double getTotalRevenue()    { return totalRevenue; }
     public double getAvgFoodSecurity() { return avgFoodSecurity; }
     public int    getRecordCount()     { return recordCount; }
+    public String getFraStatus()       { return fraStatus; }
 }

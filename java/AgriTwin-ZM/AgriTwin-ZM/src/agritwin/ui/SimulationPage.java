@@ -193,9 +193,17 @@ public class SimulationPage {
                 .mapToDouble(SimulationRecord::getFoodSecurityIndicator)
                 .average().orElse(0);
         String dateSaved = LocalDateTime.now().format(DISPLAY_DATE);
+        String fraStatus = "FRA RESERVE OK";
+        for (SimulationRecord r : lastRecords) {
+            String alerts = r.getPolicyAlerts();
+            if (alerts != null && alerts.contains("RESERVE ALERT")) {
+                fraStatus = "RESERVE ALERT";
+                break;
+            }
+        }
         ReportSummary summary = new ReportSummary(
             reportName, filePath, lastCommodity,
-            dateSaved, totalRevenue, avgFsi, lastRecords.size());
+            dateSaved, totalRevenue, avgFsi, lastRecords.size(), fraStatus);
         savedReports.add(summary);
 
         errorLabel.setVisible(false);

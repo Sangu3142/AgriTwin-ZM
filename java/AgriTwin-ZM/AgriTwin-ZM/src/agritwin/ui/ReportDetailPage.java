@@ -41,6 +41,7 @@ import javafx.util.Duration;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 
 public class ReportDetailPage {
@@ -72,6 +73,7 @@ public class ReportDetailPage {
         page.setBackground(bg(PAGE_BG, 0));
 
         page.getChildren().add(buildHeader(summary, records, onBack));
+        page.getChildren().add(buildFraPolicyCard(summary, records));
 
         HBox chartsTop = buildChartsTop(records);
         VBox chart3Wrapper = buildFsiChartCard(records);
@@ -105,6 +107,66 @@ public class ReportDetailPage {
         HBox headerRow = new HBox(12, backBtn, titleBox);
         headerRow.setAlignment(Pos.CENTER_LEFT);
         return headerRow;
+    }
+
+    // ── FRA Policy Status card ────────────────────────────────────────────────
+
+    private VBox buildFraPolicyCard(ReportSummary summary, List<SimulationRecord> records) {
+        LinkedHashSet<String> uniqueAlerts = new LinkedHashSet<>();
+        for (SimulationRecord r : records) {
+            String alerts = r.getPolicyAlerts();
+            if (alerts == null || alerts.trim().isEmpty()) continue;
+            for (String part : alerts.split(";")) {
+                String a = part.trim();
+                if (!a.isEmpty()) uniqueAlerts.add(a);
+            }
+        }
+
+        String fraStatus = summary.getFraStatus();
+        if (fraStatus == null) fraStatus = "FRA RESERVE OK";
+        boolean hasAlert = fraStatus.contains("ALERT") || fraStatus.contains("CRITICAL")
+                        || fraStatus.contains("WARNING");
+        String borderColor = hasAlert ? CORAL : ACCENT_TEAL;
+
+        Label titleLbl = new Label("FRA Policy Status");
+        titleLbl.setFont(Font.font("Segoe UI", FontWeight.BOLD, 14));
+        titleLbl.setTextFill(Color.web(TEXT_PRI));
+
+        Label statusLbl = new Label((hasAlert ? "⚠  " : "✓  ") + fraStatus);
+        statusLbl.setFont(Font.font("Segoe UI", FontWeight.BOLD, 13));
+        statusLbl.setTextFill(Color.web(hasAlert ? CORAL : ACCENT_TEAL));
+
+        VBox alertRows = new VBox(6);
+        if (uniqueAlerts.isEmpty()) {
+            Label none = new Label("No policy alerts triggered in this simulation.");
+            none.setFont(Font.font("Segoe UI", 12));
+            none.setTextFill(Color.web(TEXT_MUTED));
+            alertRows.getChildren().add(none);
+        } else {
+            for (String a : uniqueAlerts) {
+                boolean ok = a.contains("OK");
+                boolean critical = a.contains("ALERT") || a.contains("CRITICAL")
+                                || a.contains("RISK HIGH") || a.contains("BREACHED");
+                String color = ok ? ACCENT_TEAL : critical ? CORAL : GOLD;
+                String icon  = ok ? "✓  " : critical ? "⚠  " : "⚑  ";
+                Label lbl = new Label(icon + a);
+                lbl.setFont(Font.font("Segoe UI", 12));
+                lbl.setTextFill(Color.web(color));
+                alertRows.getChildren().add(lbl);
+            }
+        }
+
+        VBox card = new VBox(10, titleLbl, statusLbl, alertRows);
+        card.setPadding(new Insets(16));
+        card.setBackground(bg(CARD_BG, 12));
+        card.setBorder(new Border(new BorderStroke(Color.web(borderColor),
+                BorderStrokeStyle.SOLID, new CornerRadii(12), new BorderWidths(1.5))));
+        DropShadow s = new DropShadow();
+        s.setRadius(8);
+        s.setOffsetY(2);
+        s.setColor(Color.color(0, 0, 0, 0.3));
+        card.setEffect(s);
+        return card;
     }
 
     // ── Chart row 1: Surplus + Revenue ────────────────────────────────────────

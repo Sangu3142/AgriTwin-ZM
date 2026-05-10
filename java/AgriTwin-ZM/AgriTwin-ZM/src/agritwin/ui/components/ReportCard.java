@@ -66,7 +66,7 @@ public class ReportCard extends VBox {
         normalShadow.setColor(Color.color(0, 0, 0, 0.3));
         setEffect(normalShadow);
 
-        getChildren().addAll(buildTopRow(), buildStatsRow(), buildProgressRow());
+        getChildren().addAll(buildTopRow(), buildStatsRow(), buildFraRow(), buildProgressRow());
 
         setupHoverEffect(normalShadow);
         setOnMouseClicked(e -> {
@@ -118,6 +118,21 @@ public class ReportCard extends VBox {
             miniStat(formatRevenue(summary.getTotalRevenue()), TEXT_SEC),
             miniStat(summary.getRecordCount() + " months",    TEXT_SEC),
             miniStat(String.format("%.1f%% FSI", fsi),        fsiColor));
+        row.setAlignment(Pos.CENTER_LEFT);
+        return row;
+    }
+
+    private HBox buildFraRow() {
+        String status = summary.getFraStatus();
+        boolean isAlert = status != null && status.contains("ALERT");
+        String label = isAlert ? "⚠ FRA Reserve Alert" : "✓ FRA Reserve OK";
+        String color = isAlert ? CORAL : ACCENT_TEAL;
+
+        Label fraLbl = new Label(label);
+        fraLbl.setFont(Font.font("Segoe UI", FontWeight.BOLD, 11));
+        fraLbl.setTextFill(Color.web(color));
+
+        HBox row = new HBox(fraLbl);
         row.setAlignment(Pos.CENTER_LEFT);
         return row;
     }

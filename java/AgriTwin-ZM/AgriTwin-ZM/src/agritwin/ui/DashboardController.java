@@ -203,7 +203,21 @@ public class DashboardController {
         ".progress-indicator{-fx-progress-color:#00B5D8;}" +
         ".toggle-button{-fx-background-color:#1A2A6C;-fx-text-fill:#A0AEC0;" +
             "-fx-background-radius:20;-fx-border-radius:20;}" +
-        ".toggle-button:selected{-fx-background-color:#00CFB4;-fx-text-fill:white;}";
+        ".toggle-button:selected{-fx-background-color:#00CFB4;-fx-text-fill:white;}" +
+        ".table-view{-fx-background-color:#111C44;-fx-control-inner-background:#111C44;" +
+            "-fx-control-inner-background-alt:#0F1535;-fx-border-color:#1A2A6C;}" +
+        ".table-view .column-header-background{-fx-background-color:#1A2A6C;}" +
+        ".table-view .column-header{-fx-background-color:#1A2A6C;-fx-border-color:#111C44;}" +
+        ".table-view .column-header .label{-fx-text-fill:#FFFFFF;-fx-font-weight:bold;" +
+            "-fx-font-size:12px;}" +
+        ".table-view .filler{-fx-background-color:#1A2A6C;}" +
+        ".table-row-cell{-fx-background-color:-fx-control-inner-background;" +
+            "-fx-cell-focus-color:#1A2A6C;}" +
+        ".table-row-cell:odd{-fx-background-color:-fx-control-inner-background-alt;}" +
+        ".table-row-cell:selected{-fx-background-color:#1A2A6C;}" +
+        ".table-row-cell:selected .table-cell{-fx-text-fill:#FFFFFF;}" +
+        ".table-row-cell:hover{-fx-background-color:#1A3050;}" +
+        ".table-cell{-fx-text-fill:#A0AEC0;-fx-border-color:transparent;}";
 
     // ══════════════════════════════════════════════════════════════════════════
     // Entry point
@@ -377,6 +391,12 @@ public class DashboardController {
         clearRecentBtn.setOnAction(e -> {
             recentSimHistory.clear();
             refreshRecentSimsDisplay();
+            dashCards[0].update("—", "Production Volume", 0);
+            dashCards[1].update("—", "Market Demand",     0);
+            dashCards[2].update("—", "Net Surplus",       0);
+            dashCards[3].update("—", "Est. Revenue",      0);
+            dashCards[4].update("—", "Food Security",     0);
+            alertPanel.setBodyText("Run a simulation to see policy alerts.");
         });
 
         Region spacerH = new Region();

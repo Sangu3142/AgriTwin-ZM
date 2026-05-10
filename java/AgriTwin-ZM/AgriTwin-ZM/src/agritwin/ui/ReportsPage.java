@@ -295,8 +295,17 @@ public class ReportsPage {
         }
         double avgFsi = records.isEmpty() ? 0 : totalFsi / records.size();
 
+        String fraStatus = "FRA RESERVE OK";
+        for (SimulationRecord r : records) {
+            String alerts = r.getPolicyAlerts();
+            if (alerts != null && alerts.contains("RESERVE ALERT")) {
+                fraStatus = "RESERVE ALERT";
+                break;
+            }
+        }
+
         return new ReportSummary(reportName, filePath, commodity,
-                                 dateSaved, totalRevenue, avgFsi, records.size());
+                                 dateSaved, totalRevenue, avgFsi, records.size(), fraStatus);
     }
 
     // ── Button helpers ────────────────────────────────────────────────────────
