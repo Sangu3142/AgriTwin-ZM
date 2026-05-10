@@ -1,0 +1,6 @@
+# AgriTwin-ZM v1.0 simulation file (pipe-delimited)
+# month|commodity|production|demand|surplusOrShortage|waste|revenue|foodSecurityIndicator|policyAlerts
+1|Maize|10615.0|125.0|10490.0|385.0|56250.0|100.0|RESERVE ALERT (stock 10490t below FRA threshold 500000t); EXPORT REVIEW REQUIRED (surplus 98.8% of production); STORAGE OK
+2|Maize|10122.85|125.0|9997.85|367.14999999999964|50691.23881300048|100.0|RESERVE ALERT (stock 9998t below FRA threshold 500000t); EXPORT REVIEW REQUIRED (surplus 98.8% of production); STORAGE OK
+3|Maize|9647.92525|125.0|9522.92525|349.92475000000013|45684.70999980502|100.0|RESERVE ALERT (stock 9523t below FRA threshold 500000t); EXPORT REVIEW REQUIRED (surplus 98.7% of production); STORAGE OK
+4|Maize|9189.62286625|125.0|9064.62286625|333.30238375000044|41175.428811125916|100.0|RESERVE ALERT (stock 9065t below FRA threshold 500000t); EXPORT REVIEW REQUIRED (surplus 98.6% of production); STORAGE OK
