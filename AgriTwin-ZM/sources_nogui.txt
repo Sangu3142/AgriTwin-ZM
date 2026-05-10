@@ -1,0 +1,16 @@
+src/agritwin/Main.java
+src/agritwin/model/Commodity.java
+src/agritwin/model/Maize.java
+src/agritwin/model/SimulationRecord.java
+src/agritwin/model/StorageType.java
+src/agritwin/model/Tomato.java
+src/agritwin/service/PolicyEngine.java
+src/agritwin/service/ReportGenerator.java
+src/agritwin/service/Severity.java
+src/agritwin/service/SimulationRunner.java
+src/agritwin/service/StorageLossSimulator.java
+src/agritwin/service/SupplyDemandEngine.java
+src/agritwin/TestRunner.java
+src/agritwin/ui/ConsoleUI.java
+src/agritwin/util/FileHandler.java
+src/agritwin/util/RecordStore.java
