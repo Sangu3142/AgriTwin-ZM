@@ -10,6 +10,7 @@ import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.control.Label;
+import javafx.scene.control.Tooltip;
 import javafx.scene.effect.DropShadow;
 import javafx.scene.layout.Background;
 import javafx.scene.layout.BackgroundFill;
@@ -35,12 +36,12 @@ import javafx.util.Duration;
  */
 public class StatCard extends StackPane {
 
-    private static final String CARD_BG     = "#111C44";
-    private static final String CARD_BORDER = "#1A2A6C";
-    private static final String ACCENT_TEAL = "#00CFB4";
-    private static final String PROGRESS_BG = "#1E3A5F";
-    private static final String TEXT_SEC    = "#A0AEC0";
-    private static final String TEXT_MUTED  = "#718096";
+    private static final String CARD_BG     = "#111827";
+    private static final String CARD_BORDER = "#1f2937";
+    private static final String ACCENT_TEAL = "#00d4b4";
+    private static final String PROGRESS_BG = "#1f2937";
+    private static final String TEXT_SEC    = "#9ca3af";
+    private static final String TEXT_MUTED  = "#4b5563";
 
     private final Label  valueLabel    = new Label();
     private final Label  titleLabel    = new Label();
@@ -126,6 +127,22 @@ public class StatCard extends StackPane {
     /** Changes the value label colour (e.g. TEAL for surplus, CORAL for shortage). */
     public void setValueColor(String hex) {
         valueLabel.setTextFill(Color.web(hex));
+    }
+
+    /** Overlays a ⓘ label at the top-right corner; hovering shows a tooltip. */
+    public void installInfoTooltip(String text) {
+        Label info = new Label("ⓘ");
+        info.setFont(Font.font("Segoe UI", 11));
+        info.setTextFill(Color.web(TEXT_MUTED));
+        info.setCursor(javafx.scene.Cursor.HAND);
+        Tooltip tip = new Tooltip(text);
+        tip.setFont(Font.font("Segoe UI", 11));
+        tip.setWrapText(true);
+        tip.setMaxWidth(240);
+        Tooltip.install(info, tip);
+        StackPane.setAlignment(info, Pos.TOP_RIGHT);
+        StackPane.setMargin(info, new Insets(8, 10, 0, 0));
+        getChildren().add(info);
     }
 
     /**

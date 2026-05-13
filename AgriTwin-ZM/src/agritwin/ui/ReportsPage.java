@@ -13,7 +13,6 @@ import javafx.geometry.Pos;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.control.ScrollPane;
-import javafx.scene.effect.DropShadow;
 import javafx.scene.layout.Background;
 import javafx.scene.layout.BackgroundFill;
 import javafx.scene.layout.Border;
@@ -32,31 +31,39 @@ import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 import javafx.util.Duration;
 
+import java.io.BufferedWriter;
 import java.io.File;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.function.Supplier;
+import javafx.scene.control.Alert;
+import javafx.scene.control.ButtonType;
+import javafx.stage.FileChooser;
 
 public class ReportsPage {
 
-    private static final String PAGE_BG     = "#0F1535";
-    private static final String CARD_BG     = "#111C44";
-    private static final String CARD_BORDER = "#1A2A6C";
-    private static final String ACCENT_CYAN = "#00B5D8";
-    private static final String ACCENT_TEAL = "#00CFB4";
-    private static final String GREEN_PILL  = "#48BB78";
-    private static final String TEXT_PRI    = "#FFFFFF";
-    private static final String TEXT_SEC    = "#A0AEC0";
-    private static final String TEXT_MUTED  = "#718096";
+    private static final String PAGE_BG     = "#0a0f1e";
+    private static final String CARD_BG     = "#111827";
+    private static final String CARD_BORDER = "#1f2937";
+    private static final String ACCENT_CYAN = "#00d4b4";
+    private static final String ACCENT_TEAL = "#00d4b4";
+    private static final String GREEN_PILL  = "#10b981";
+    private static final String TEXT_PRI    = "#f9fafb";
+    private static final String TEXT_SEC    = "#9ca3af";
+    private static final String TEXT_MUTED  = "#4b5563";
 
     private static final DateTimeFormatter DATE_FMT =
             DateTimeFormatter.ofPattern("d MMM yyyy, HH:mm");
 
     private final ObservableList<ReportSummary> savedReports;
     private final Runnable goToSimulation;
+    private final Supplier<String> reportContentSupplier;
 
     // Root node held across grid↔detail transitions
     private final VBox root;
@@ -69,9 +76,12 @@ public class ReportsPage {
     private final FileHandler fileHandler = new FileHandler();
     private final ReportDetailPage detailPageBuilder = new ReportDetailPage();
 
-    public ReportsPage(ObservableList<ReportSummary> savedReports, Runnable goToSimulation) {
-        this.savedReports  = savedReports;
-        this.goToSimulation = goToSimulation;
+    public ReportsPage(ObservableList<ReportSummary> savedReports,
+                       Runnable goToSimulation,
+                       Supplier<String> reportContentSupplier) {
+        this.savedReports          = savedReports;
+        this.goToSimulation        = goToSimulation;
+        this.reportContentSupplier = reportContentSupplier;
         root = new VBox(0);
         root.setBackground(bg(PAGE_BG, 0));
     }
@@ -119,10 +129,13 @@ public class ReportsPage {
         refreshBtn.setTooltip(new javafx.scene.control.Tooltip("Re-scan reports folder"));
         refreshBtn.setOnAction(e -> refreshFromDisk());
 
+        Button saveReportBtn = outlineButton("💾 Save Report");
+        saveReportBtn.setOnAction(e -> handleExportReport());
+
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
 
-        HBox bar = new HBox(14, titleBox, spacer, goSimBtn, refreshBtn);
+        HBox bar = new HBox(14, titleBox, spacer, goSimBtn, refreshBtn, saveReportBtn);
         bar.setAlignment(Pos.CENTER_LEFT);
         bar.setPadding(new Insets(20, 28, 16, 28));
         bar.setBackground(bg(PAGE_BG, 0));
@@ -260,6 +273,36 @@ public class ReportsPage {
             } catch (IOException e) {
                 System.err.println("Skipping malformed report: " + f.getName());
             }
+        }
+    }
+
+    // ── Export report ─────────────────────────────────────────────────────────
+
+    /** Opens a FileChooser and writes the full simulation report to a .txt file. */
+    private void handleExportReport() {
+        FileChooser fc = new FileChooser();
+        fc.setTitle("Save Simulation Report");
+        DateTimeFormatter df = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+        fc.setInitialFileName("AgriTwin_Report_" + LocalDate.now().format(df) + ".txt");
+        fc.getExtensionFilters().add(
+                new FileChooser.ExtensionFilter("Text Files (*.txt)", "*.txt"));
+        File file = fc.showSaveDialog(root.getScene() == null ? null : root.getScene().getWindow());
+        if (file == null) return;
+        try (BufferedWriter bw = new BufferedWriter(new FileWriter(file))) {
+            bw.write(reportContentSupplier.get());
+            Alert alert = new Alert(Alert.AlertType.INFORMATION,
+                    "Report saved successfully to:\n" + file.getAbsolutePath(),
+                    ButtonType.OK);
+            alert.setTitle("Report Saved");
+            alert.setHeaderText(null);
+            alert.showAndWait();
+        } catch (IOException ex) {
+            Alert alert = new Alert(Alert.AlertType.ERROR,
+                    "Failed to save report:\n" + ex.getMessage(),
+                    ButtonType.OK);
+            alert.setTitle("Save Failed");
+            alert.setHeaderText(null);
+            alert.showAndWait();
         }
     }
 

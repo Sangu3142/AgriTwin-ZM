@@ -1,7 +1,6 @@
 package agritwin.ui;
 
 import agritwin.model.SimulationRecord;
-import agritwin.service.ReportGenerator;
 import agritwin.ui.model.ReportSummary;
 import agritwin.util.FileHandler;
 
@@ -58,7 +57,6 @@ public class ReportDetailPage {
     private static final String TEXT_MUTED = "#718096";
 
     private final FileHandler fileHandler = new FileHandler();
-    private final ReportGenerator reporter = new ReportGenerator();
 
     public VBox buildView(ReportSummary summary, Runnable onBack) {
         List<SimulationRecord> records = new ArrayList<>();
