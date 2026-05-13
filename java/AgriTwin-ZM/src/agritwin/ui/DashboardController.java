@@ -61,11 +61,30 @@ import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 import javafx.util.Duration;
 
+import java.io.BufferedWriter;
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.io.OutputStreamWriter;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Properties;
+
+import javafx.collections.transformation.FilteredList;
+import javafx.scene.chart.AreaChart;
+import javafx.scene.control.Alert;
+import javafx.scene.control.ButtonType;
+import javafx.scene.control.TableColumn;
+import javafx.scene.control.TableView;
+import javafx.scene.control.ToggleButton;
+import javafx.scene.control.ToggleGroup;
+import javafx.scene.control.Tooltip;
+import javafx.stage.FileChooser;
 
 /**
  * MODULE: Dashboard Controller
@@ -80,29 +99,32 @@ import java.util.List;
  */
 public class DashboardController {
 
-    // ── Palette (Vision UI dark) ───────────────────────────────────────────────
-    private static final String PAGE_BG      = "#0F1535";
-    private static final String CARD_BG      = "#111C44";
-    private static final String CARD_BORDER  = "#1A2A6C";
-    private static final String ACCENT_CYAN  = "#00B5D8";
-    private static final String ACCENT_TEAL  = "#00CFB4";
-    private static final String GREEN_PILL   = "#48BB78";
-    private static final String CORAL        = "#F56565";
-    private static final String GOLD         = "#ECC94B";
-    private static final String TEXT_PRI     = "#FFFFFF";
-    private static final String TEXT_SEC     = "#A0AEC0";
-    private static final String TEXT_MUTED   = "#718096";
-    private static final String INPUT_BG     = "#1A2240";
-    private static final String INPUT_BORDER = "#2D3748";
+    // ── Palette ───────────────────────────────────────────────────────────────
+    private static final String PAGE_BG      = "#0a0f1e";
+    private static final String CARD_BG      = "#111827";
+    private static final String CARD_BORDER  = "#1f2937";
+    private static final String ACCENT_CYAN  = "#00d4b4";
+    private static final String ACCENT_TEAL  = "#00d4b4";
+    private static final String GREEN_PILL   = "#10b981";
+    private static final String CORAL        = "#ef4444";
+    private static final String GOLD         = "#f59e0b";
+    private static final String AMBER        = "#f59e0b";
+    private static final String DANGER       = "#ef4444";
+    private static final String SUCCESS      = "#10b981";
+    private static final String TEXT_PRI     = "#f9fafb";
+    private static final String TEXT_SEC     = "#9ca3af";
+    private static final String TEXT_MUTED   = "#4b5563";
+    private static final String INPUT_BG     = "#1f2937";
+    private static final String INPUT_BORDER = "#374151";
 
-    // ── Page indices — must match SidebarMenu LABELS order ────────────────────
+    // ── Page indices ──────────────────────────────────────────────────────────
     private static final int PG_DASHBOARD  = 0;
     private static final int PG_SIMULATION = 1;
     private static final int PG_STORAGE    = 2;
     private static final int PG_ALERTS     = 3;
     private static final int PG_REPORTS    = 4;
     private static final int PG_SETTINGS   = 5;
-
+    private static final int PG_ANALYTICS  = 6;
 
 
     // ── Navigation ─────────────────────────────────────────────────────────────
@@ -144,6 +166,18 @@ public class DashboardController {
     private Tomato                 lastTomato;
     private int                    lastTomatoDays;
 
+    // ── Alerts page rule cards ─────────────────────────────────────────────────
+    private VBox alertsRuleCardsArea;
+    private VBox alertsNoDataBox;
+
+    // ── Last-simulation values for alerts and export ───────────────────────────
+    private double alertsStock   = -1;  // -1 means no data yet
+    private double alertsSurplus = 0;
+    private double alertsProd    = 0;
+    private int    alertsMonths  = 0;
+    private Maize  lastMaize;
+    private List<SimulationRecord> lastMaizeRecords;
+
     // ── Top-bar search ─────────────────────────────────────────────────────────
     private TextField searchBar;
 
@@ -151,6 +185,41 @@ public class DashboardController {
     private TextField alertFldStock, alertFldSurplus, alertFldProd,
                       alertFldMonths, alertFldDays, alertFldShelf;
     private TextArea  alertsResultArea;
+
+    // ── Dashboard extras (Feature 9) ───────────────────────────────────────────
+    private LineChart<String, Number> dashProdChart;
+    private VBox                      dashChartArea;
+    private Label fraLusakaLbl, fraCopperbeltLbl, fraSouthernLbl, fraEasternLbl;
+    private Label fraTotalLbl;
+    private HBox  fraLusakaRow, fraCopperbeltRow, fraSouthernRow, fraEasternRow;
+
+    // ── Region selection ──────────────────────────────────────────────────────
+    private ComboBox<String> fldRegion;
+    private String           simRegion = "Lusaka";
+
+    // ── Monthly breakdown table (Feature 4) ───────────────────────────────────
+    private TableView<SimulationRecord>     monthlyTable;
+    private ObservableList<SimulationRecord> monthlyRecords;
+    private FilteredList<SimulationRecord>  filteredMonthly;
+
+    // ── Analytics page charts (Feature 5) ────────────────────────────────────
+    private LineChart<String, Number>  analSurplusChart;
+    private BarChart<String, Number>   analRevenueChart;
+    private AreaChart<String, Number>  analFsiChart;
+    private VBox                       analyticsPlaceholder;
+    private VBox                       analyticsChartsArea;
+
+    // ── Policy history table (Feature 8) ──────────────────────────────────────
+    private TableView<SimulationRecord>     policyHistoryTable;
+    private ObservableList<SimulationRecord> policyHistoryRecords;
+    private Label                            alertsEventCount;
+    private VBox                             alertsRecommendationBox;
+
+    // ── Settings (Feature 7) ──────────────────────────────────────────────────
+    private Properties appSettings;
+    private static final String SETTINGS_FILE = "agritwin_settings.properties";
+    private TextField settingsProdFld, settingsDemandFld, settingsPriceFld;
+    private TextField settingsMonthsFld, settingsInstitutionFld;
 
     // ── Shared reports state ───────────────────────────────────────────────────
     private ObservableList<ReportSummary> savedReports;
@@ -170,75 +239,78 @@ public class DashboardController {
         ".scroll-pane{-fx-background-color:transparent;-fx-background:transparent;" +
             "-fx-border-color:transparent;}" +
         ".scroll-pane>.viewport{-fx-background-color:transparent;}" +
-        ".scroll-bar{-fx-background-color:#0B1437;}" +
-        ".scroll-bar .thumb{-fx-background-color:#1A2A6C;-fx-background-radius:4;}" +
+        ".scroll-bar{-fx-background-color:#0a0f1e;}" +
+        ".scroll-bar .thumb{-fx-background-color:#1f2937;-fx-background-radius:4;}" +
         ".scroll-bar .increment-button,.scroll-bar .decrement-button{" +
-            "-fx-background-color:#0B1437;}" +
-        ".chart{-fx-background-color:#111C44;-fx-padding:16;}" +
-        ".chart-plot-background{-fx-background-color:#0F1535;}" +
-        ".chart-title{-fx-text-fill:white;-fx-font-size:13px;-fx-font-weight:bold;}" +
-        ".axis{-fx-tick-label-fill:#A0AEC0;}" +
-        ".axis-label{-fx-text-fill:#A0AEC0;-fx-font-size:11px;}" +
-        ".chart-vertical-grid-lines{-fx-stroke:#1A2A6C;-fx-stroke-width:0.5;}" +
-        ".chart-horizontal-grid-lines{-fx-stroke:#1A2A6C;-fx-stroke-width:0.5;}" +
+            "-fx-background-color:#0a0f1e;}" +
+        ".chart{-fx-background-color:#111827;-fx-padding:16;}" +
+        ".chart-plot-background{-fx-background-color:#0a0f1e;}" +
+        ".chart-title{-fx-text-fill:#f9fafb;-fx-font-size:13px;-fx-font-weight:bold;}" +
+        ".axis{-fx-tick-label-fill:#9ca3af;}" +
+        ".axis-label{-fx-text-fill:#9ca3af;-fx-font-size:11px;}" +
+        ".chart-vertical-grid-lines{-fx-stroke:#1f2937;-fx-stroke-width:0.5;}" +
+        ".chart-horizontal-grid-lines{-fx-stroke:#1f2937;-fx-stroke-width:0.5;}" +
         ".chart-legend{-fx-background-color:transparent;}" +
-        ".chart-legend-item{-fx-text-fill:#A0AEC0;}" +
-        ".default-color0.chart-series-line{-fx-stroke:#00B5D8;-fx-stroke-width:2;}" +
-        ".default-color1.chart-series-line{-fx-stroke:#48BB78;-fx-stroke-width:2;}" +
-        ".default-color2.chart-series-line{-fx-stroke:#F56565;-fx-stroke-width:2;}" +
-        ".default-color3.chart-series-line{-fx-stroke:#ECC94B;-fx-stroke-width:2;}" +
-        ".default-color0.chart-bar{-fx-bar-fill:#00B5D8;}" +
-        ".default-color1.chart-bar{-fx-bar-fill:#48BB78;}" +
-        ".default-color2.chart-bar{-fx-bar-fill:#F56565;}" +
-        ".default-color0.chart-pie{-fx-pie-color:#F56565;}" +
-        ".default-color1.chart-pie{-fx-pie-color:#ECC94B;}" +
-        ".default-color2.chart-pie{-fx-pie-color:#48BB78;}" +
-        ".default-color3.chart-pie{-fx-pie-color:#A0AEC0;}" +
-        ".text-area{-fx-control-inner-background:#111C44;-fx-text-fill:#A0AEC0;" +
-            "-fx-border-color:#1A2A6C;-fx-border-radius:8;-fx-background-radius:8;}" +
-        ".text-area .content{-fx-background-color:#111C44;}" +
-        ".text-area:focused{-fx-border-color:#00B5D8;}" +
-        ".text-field{-fx-background-color:#1A2240;-fx-text-fill:white;" +
-            "-fx-prompt-text-fill:#718096;-fx-border-color:#2D3748;" +
+        ".chart-legend-item{-fx-text-fill:#9ca3af;}" +
+        ".default-color0.chart-series-line{-fx-stroke:#00d4b4;-fx-stroke-width:2;}" +
+        ".default-color1.chart-series-line{-fx-stroke:#10b981;-fx-stroke-width:2;}" +
+        ".default-color2.chart-series-line{-fx-stroke:#ef4444;-fx-stroke-width:2;}" +
+        ".default-color3.chart-series-line{-fx-stroke:#f59e0b;-fx-stroke-width:2;}" +
+        ".default-color0.chart-bar{-fx-bar-fill:#00d4b4;}" +
+        ".default-color1.chart-bar{-fx-bar-fill:#10b981;}" +
+        ".default-color2.chart-bar{-fx-bar-fill:#ef4444;}" +
+        ".default-color0.chart-pie{-fx-pie-color:#ef4444;}" +
+        ".default-color1.chart-pie{-fx-pie-color:#f59e0b;}" +
+        ".default-color2.chart-pie{-fx-pie-color:#10b981;}" +
+        ".default-color3.chart-pie{-fx-pie-color:#9ca3af;}" +
+        ".default-color0.chart-series-area-fill{-fx-fill:#00d4b430;}" +
+        ".default-color0.chart-series-area-line{-fx-stroke:#00d4b4;-fx-stroke-width:2;}" +
+        ".text-area{-fx-control-inner-background:#111827;-fx-text-fill:#9ca3af;" +
+            "-fx-border-color:#1f2937;-fx-border-radius:8;-fx-background-radius:8;}" +
+        ".text-area .content{-fx-background-color:#111827;}" +
+        ".text-area:focused{-fx-border-color:#00d4b4;}" +
+        ".text-field{-fx-background-color:#1f2937;-fx-text-fill:#f9fafb;" +
+            "-fx-prompt-text-fill:#4b5563;-fx-border-color:#374151;" +
             "-fx-border-radius:8;-fx-background-radius:8;}" +
-        ".text-field:focused{-fx-border-color:#00B5D8;}" +
-        ".combo-box{-fx-background-color:#1A2240;-fx-mark-color:#A0AEC0;" +
-            "-fx-border-color:#2D3748;-fx-border-radius:8;-fx-background-radius:8;}" +
-        ".combo-box .list-cell{-fx-text-fill:white;-fx-background-color:#1A2240;}" +
-        ".combo-box .arrow-button{-fx-background-color:#1A2240;}" +
-        ".combo-box-popup .list-view{-fx-background-color:#111C44;-fx-border-color:#1A2A6C;}" +
-        ".combo-box-popup .list-cell{-fx-text-fill:white;-fx-background-color:#111C44;}" +
-        ".combo-box-popup .list-cell:hover{-fx-background-color:#1A2A6C;}" +
-        ".progress-indicator{-fx-progress-color:#00B5D8;}" +
-        ".toggle-button{-fx-background-color:#1A2A6C;-fx-text-fill:#A0AEC0;" +
+        ".text-field:focused{-fx-border-color:#00d4b4;}" +
+        ".combo-box{-fx-background-color:#1f2937;-fx-mark-color:#9ca3af;" +
+            "-fx-border-color:#374151;-fx-border-radius:8;-fx-background-radius:8;}" +
+        ".combo-box .list-cell{-fx-text-fill:#f9fafb;-fx-background-color:#1f2937;}" +
+        ".combo-box .arrow-button{-fx-background-color:#1f2937;}" +
+        ".combo-box-popup .list-view{-fx-background-color:#111827;-fx-border-color:#1f2937;}" +
+        ".combo-box-popup .list-cell{-fx-text-fill:#f9fafb;-fx-background-color:#111827;}" +
+        ".combo-box-popup .list-cell:hover{-fx-background-color:#1f2937;}" +
+        ".progress-indicator{-fx-progress-color:#00d4b4;}" +
+        ".toggle-button{-fx-background-color:#1f2937;-fx-text-fill:#9ca3af;" +
             "-fx-background-radius:20;-fx-border-radius:20;}" +
-        ".toggle-button:selected{-fx-background-color:#00CFB4;-fx-text-fill:white;}" +
-        ".table-view{-fx-background-color:#111C44;-fx-control-inner-background:#111C44;" +
-            "-fx-control-inner-background-alt:#0F1535;-fx-border-color:#1A2A6C;}" +
-        ".table-view .column-header-background{-fx-background-color:#1A2A6C;}" +
-        ".table-view .column-header{-fx-background-color:#1A2A6C;-fx-border-color:#111C44;}" +
-        ".table-view .column-header .label{-fx-text-fill:#FFFFFF;-fx-font-weight:bold;" +
+        ".toggle-button:selected{-fx-background-color:#00d4b4;-fx-text-fill:#0a0f1e;}" +
+        ".table-view{-fx-background-color:#111827;-fx-control-inner-background:#111827;" +
+            "-fx-control-inner-background-alt:#0a0f1e;-fx-border-color:#1f2937;}" +
+        ".table-view .column-header-background{-fx-background-color:#1f2937;}" +
+        ".table-view .column-header{-fx-background-color:#1f2937;-fx-border-color:#111827;}" +
+        ".table-view .column-header .label{-fx-text-fill:#f9fafb;-fx-font-weight:bold;" +
             "-fx-font-size:12px;}" +
-        ".table-view .filler{-fx-background-color:#1A2A6C;}" +
+        ".table-view .filler{-fx-background-color:#1f2937;}" +
         ".table-row-cell{-fx-background-color:-fx-control-inner-background;" +
-            "-fx-cell-focus-color:#1A2A6C;}" +
+            "-fx-cell-focus-color:#1f2937;}" +
         ".table-row-cell:odd{-fx-background-color:-fx-control-inner-background-alt;}" +
-        ".table-row-cell:selected{-fx-background-color:#1A2A6C;}" +
-        ".table-row-cell:selected .table-cell{-fx-text-fill:#FFFFFF;}" +
-        ".table-row-cell:hover{-fx-background-color:#1A3050;}" +
-        ".table-cell{-fx-text-fill:#A0AEC0;-fx-border-color:transparent;}" +
-        ".context-menu{-fx-background-color:#111C44;-fx-border-color:#1A2A6C;" +
+        ".table-row-cell:selected{-fx-background-color:#1f2937;}" +
+        ".table-row-cell:selected .table-cell{-fx-text-fill:#f9fafb;}" +
+        ".table-row-cell:hover{-fx-background-color:#1a2535;}" +
+        ".table-cell{-fx-text-fill:#9ca3af;-fx-border-color:transparent;}" +
+        ".context-menu{-fx-background-color:#111827;-fx-border-color:#1f2937;" +
             "-fx-border-width:1;-fx-border-radius:8;-fx-background-radius:8;}" +
-        ".menu-item{-fx-background-color:#111C44;}" +
-        ".menu-item .label{-fx-text-fill:#FFFFFF;-fx-font-size:12px;}" +
-        ".menu-item:focused{-fx-background-color:#1A2A6C;}" +
-        ".menu-item:hover{-fx-background-color:#1A2A6C;}";
+        ".menu-item{-fx-background-color:#111827;}" +
+        ".menu-item .label{-fx-text-fill:#f9fafb;-fx-font-size:12px;}" +
+        ".menu-item:focused{-fx-background-color:#1f2937;}" +
+        ".menu-item:hover{-fx-background-color:#1f2937;}";
 
     // ══════════════════════════════════════════════════════════════════════════
     // Entry point
     // ══════════════════════════════════════════════════════════════════════════
 
     public Scene buildScene() {
+        loadSettings();
         BorderPane root = new BorderPane();
         root.setBackground(bg(PAGE_BG, 0));
         sidebar = new SidebarMenu(this::handleNavSelect);
@@ -266,7 +338,9 @@ public class DashboardController {
 
         savedReports    = loadAllSavedReports();
         simPage         = new SimulationPage(savedReports);
-        reportsPageCtrl = new ReportsPage(savedReports, () -> selectPage(PG_SIMULATION));
+        reportsPageCtrl = new ReportsPage(savedReports,
+                () -> selectPage(PG_SIMULATION),
+                this::generateExportReportContent);
 
         pages = new VBox[] {
                 buildDashboardPage(),
@@ -274,7 +348,8 @@ public class DashboardController {
                 buildStoragePage(),
                 buildAlertsPage(),
                 reportsPageCtrl.buildPage(),
-                buildSettingsPage()
+                buildSettingsPage(),
+                buildAnalyticsPage()
         };
 
         contentScroll = new ScrollPane(pages[PG_DASHBOARD]);
@@ -305,17 +380,18 @@ public class DashboardController {
         bar.setEffect(barShadow);
 
         searchBar = new TextField();
-        searchBar.setPromptText("Search — alerts, reports, storage…");
-        searchBar.setPrefWidth(260);
+        searchBar.setPromptText("Search — dashboard, simulate, storage, fra, analytics…");
+        searchBar.setPrefWidth(280);
 
         // Navigation search index: {display label, keywords, page index}
         Object[][] navItems = {
-            {"Dashboard",     new String[]{"dashboard","overview","home","kpi","stats"},        PG_DASHBOARD},
-            {"Simulation",    new String[]{"simulation","simulate","crop","maize","tomato"},    PG_SIMULATION},
-            {"Storage",       new String[]{"storage","warehouse","silo","stock","capacity"},    PG_STORAGE},
-            {"Policy Alerts", new String[]{"alert","policy","fra","reserve","export","check"},  PG_ALERTS},
-            {"Reports",       new String[]{"report","reports","saved","history","analysis"},    PG_REPORTS},
-            {"Information",   new String[]{"info","information","settings","about","system"},   PG_SETTINGS},
+            {"Dashboard",     new String[]{"dashboard","overview","home","kpi","stats","summary"},           PG_DASHBOARD},
+            {"Simulate",      new String[]{"simulation","simulate","crop","maize","tomato","run","form"},    PG_SIMULATION},
+            {"Analytics",     new String[]{"analytics","charts","trend","surplus","revenue","fsi","graph"},  PG_ANALYTICS},
+            {"Storage",       new String[]{"storage","warehouse","silo","stock","capacity","loss"},          PG_STORAGE},
+            {"FRA Reserves",  new String[]{"fra","reserve","alert","policy","regional","depot","lusaka"},    PG_ALERTS},
+            {"Season Report", new String[]{"report","reports","saved","history","season","export"},          PG_REPORTS},
+            {"About",         new String[]{"about","information","info","system","overview","how","version"}, PG_SETTINGS},
         };
 
         ContextMenu suggestions = new ContextMenu();
@@ -332,7 +408,7 @@ public class DashboardController {
                 if (!match) for (String kw : keywords) if (kw.contains(q)) { match = true; break; }
                 if (match) {
                     MenuItem mi = new MenuItem(navLabel);
-                    mi.setOnAction(ev -> { searchBar.clear(); selectPage(pgIdx); });
+                    mi.setOnAction(ev -> { searchBar.clear(); handleNavSelect(navLabel); });
                     suggestions.getItems().add(mi);
                 }
             }
@@ -359,7 +435,7 @@ public class DashboardController {
         gear.setTextFill(Color.web(TEXT_SEC));
         gear.setCursor(javafx.scene.Cursor.HAND);
         gear.setPadding(new Insets(0, 4, 0, 4));
-        gear.setOnMouseClicked(e -> selectPage(PG_SETTINGS));
+        gear.setOnMouseClicked(e -> handleNavSelect("About"));
 
         Circle avatar = new Circle(18);
         avatar.setFill(Color.web(ACCENT_CYAN));
@@ -391,7 +467,21 @@ public class DashboardController {
             new StatCard("—", "Food Security",     ACCENT_TEAL, true,  0),
         };
 
-        VBox cardsAndLower = new VBox(20, buildCardsRow(dashCards), buildLowerSection());
+        // 3-series production trend chart (Feature 9)
+        CategoryAxis dx = new CategoryAxis(); dx.setLabel("Month");
+        NumberAxis   dy = new NumberAxis();   dy.setLabel("Value");
+        dashProdChart = new LineChart<>(dx, dy);
+        dashProdChart.setTitle("Production · Demand · FSI Trend");
+        dashProdChart.setAnimated(false);
+        dashProdChart.setPrefHeight(240);
+        dashProdChart.setStyle("-fx-background-color:" + CARD_BG + ";");
+
+        dashChartArea = new VBox(dashProdChart);
+        dashChartArea.setVisible(false);
+        dashChartArea.setManaged(false);
+
+        VBox cardsAndLower = new VBox(20, buildCardsRow(dashCards),
+                dashChartArea, buildLowerSection());
         VBox.setVgrow(cardsAndLower, Priority.ALWAYS);
         page.getChildren().add(cardsAndLower);
         return page;
@@ -432,10 +522,71 @@ public class DashboardController {
         VBox recent = buildRecentSims();
         HBox.setHgrow(recent, Priority.ALWAYS);
 
+        VBox fraPanel = buildFraDepotPanel();
+        fraPanel.setPrefWidth(230);
+        fraPanel.setMinWidth(200);
+
         alertPanel = new AlertPanel("Run a simulation to see policy alerts.", () -> selectPage(PG_ALERTS));
-        alertPanel.setPrefWidth(320);
-        alertPanel.setMinWidth(260);
-        return new HBox(18, recent, alertPanel);
+        alertPanel.setPrefWidth(300);
+        alertPanel.setMinWidth(240);
+        return new HBox(16, recent, fraPanel, alertPanel);
+    }
+
+    private VBox buildFraDepotPanel() {
+        Label title = new Label("FRA Regional Depots");
+        title.setFont(Font.font("Segoe UI", FontWeight.BOLD, 14));
+        title.setTextFill(Color.web(TEXT_PRI));
+
+        fraLusakaLbl     = depotValueLabel();
+        fraCopperbeltLbl = depotValueLabel();
+        fraSouthernLbl   = depotValueLabel();
+        fraEasternLbl    = depotValueLabel();
+        fraTotalLbl      = new Label("No data");
+        fraTotalLbl.setFont(Font.font("Segoe UI", 10));
+        fraTotalLbl.setTextFill(Color.web(TEXT_MUTED));
+
+        fraLusakaRow     = depotRow("Lusaka",     "30%", fraLusakaLbl);
+        fraCopperbeltRow = depotRow("Copperbelt", "25%", fraCopperbeltLbl);
+        fraSouthernRow   = depotRow("Southern",   "25%", fraSouthernLbl);
+        fraEasternRow    = depotRow("Eastern",    "20%", fraEasternLbl);
+        VBox rows = new VBox(6,
+                fraLusakaRow, fraCopperbeltRow, fraSouthernRow, fraEasternRow,
+                fraTotalLbl);
+
+        VBox panel = new VBox(10, title, rows);
+        panel.setPadding(new Insets(16));
+        panel.setBackground(bg(CARD_BG, 12));
+        panel.setBorder(new Border(new BorderStroke(Color.web(CARD_BORDER),
+                BorderStrokeStyle.SOLID, new CornerRadii(12), new BorderWidths(1))));
+        DropShadow s = new DropShadow();
+        s.setRadius(10); s.setOffsetY(3); s.setColor(Color.color(0,0,0,0.35));
+        panel.setEffect(s);
+        return panel;
+    }
+
+    private Label depotValueLabel() {
+        Label lbl = new Label("— t");
+        lbl.setFont(Font.font("Segoe UI", FontWeight.BOLD, 12));
+        lbl.setTextFill(Color.web(ACCENT_TEAL));
+        return lbl;
+    }
+
+    private HBox depotRow(String depot, String pct, Label valueLbl) {
+        Label nameLbl = new Label(depot);
+        nameLbl.setFont(Font.font("Segoe UI", FontWeight.BOLD, 11));
+        nameLbl.setTextFill(Color.web(TEXT_PRI));
+        nameLbl.setMinWidth(72);
+
+        Label pctLbl = new Label(pct);
+        pctLbl.setFont(Font.font("Segoe UI", 10));
+        pctLbl.setTextFill(Color.web(TEXT_MUTED));
+        pctLbl.setMinWidth(30);
+
+        HBox row = new HBox(6, nameLbl, pctLbl, valueLbl);
+        row.setAlignment(Pos.CENTER_LEFT);
+        row.setPadding(new Insets(4, 8, 4, 8));
+        row.setBackground(bg(PAGE_BG, 6));
+        return row;
     }
 
     private VBox buildRecentSims() {
@@ -446,16 +597,7 @@ public class DashboardController {
         Button clearRecentBtn = actionButton("✕  Clear", CORAL);
         clearRecentBtn.setPadding(new Insets(4, 12, 4, 12));
         clearRecentBtn.setFont(Font.font("Segoe UI", FontWeight.BOLD, 11));
-        clearRecentBtn.setOnAction(e -> {
-            recentSimHistory.clear();
-            refreshRecentSimsDisplay();
-            dashCards[0].update("—", "Production Volume", 0);
-            dashCards[1].update("—", "Market Demand",     0);
-            dashCards[2].update("—", "Net Surplus",       0);
-            dashCards[3].update("—", "Est. Revenue",      0);
-            dashCards[4].update("—", "Food Security",     0);
-            alertPanel.setBodyText("Run a simulation to see policy alerts.");
-        });
+        clearRecentBtn.setOnAction(e -> clearDashboard());
 
         Region spacerH = new Region();
         HBox.setHgrow(spacerH, Priority.ALWAYS);
@@ -481,6 +623,51 @@ public class DashboardController {
         for (String[] e : recentSimHistory) {
             recentSimsListBox.getChildren().add(simRow(e[0], e[1], e[2], e[3]));
         }
+    }
+
+    private void clearDashboard() {
+        // Stat cards
+        dashCards[0].update("—", "Production Volume", 0);
+        dashCards[1].update("—", "Market Demand",     0);
+        dashCards[2].update("—", "Net Surplus",       0);
+        dashCards[3].update("—", "Est. Revenue",      0);
+        dashCards[4].update("—", "Food Security",     0);
+
+        // Recent sims list
+        recentSimHistory.clear();
+        refreshRecentSimsDisplay();
+
+        // Dashboard production chart
+        if (dashProdChart != null) dashProdChart.getData().clear();
+        if (dashChartArea != null) {
+            dashChartArea.setVisible(false);
+            dashChartArea.setManaged(false);
+        }
+
+        // FRA depot panel
+        if (fraLusakaLbl != null) {
+            fraLusakaLbl.setText("— t");
+            fraCopperbeltLbl.setText("— t");
+            fraSouthernLbl.setText("— t");
+            fraEasternLbl.setText("— t");
+            fraTotalLbl.setText("No data");
+        }
+        if (fraLusakaRow != null) {
+            fraLusakaRow.setBackground(bg(PAGE_BG, 6));
+            fraCopperbeltRow.setBackground(bg(PAGE_BG, 6));
+            fraSouthernRow.setBackground(bg(PAGE_BG, 6));
+            fraEasternRow.setBackground(bg(PAGE_BG, 6));
+        }
+
+        // Policy status panel
+        alertPanel.setBodyText("Run a simulation to see policy alerts.");
+
+        // Reset stored simulation data so depot listener doesn't re-populate
+        alertsStock   = -1;
+        alertsSurplus = 0;
+        alertsProd    = 0;
+        alertsMonths  = 0;
+        sidebar.setFraAlert(false);
     }
 
     private HBox simRow(String icon, String iconColor, String titleText, String subText) {
@@ -509,6 +696,9 @@ public class DashboardController {
         s.setOffsetY(2);
         s.setColor(Color.color(0, 0, 0, 0.25));
         row.setEffect(s);
+        row.setCursor(javafx.scene.Cursor.HAND);
+        row.setOnMouseClicked(e -> selectPage(PG_REPORTS, "Season Report"));
+        Tooltip.install(row, new Tooltip("Click to open saved reports"));
         StatCard.addHoverLift(row);
         return row;
     }
@@ -534,6 +724,9 @@ public class DashboardController {
                 Math.min(1, totalRev / 500_000_000));
         dashCards[4].update(String.format("%.1f%%", avgFsi), "Food Security",
                 avgFsi / 100.0);
+        // Color-code the dashboard FSI card
+        String fsiDashColor = avgFsi >= 80 ? ACCENT_TEAL : avgFsi >= 60 ? GOLD : CORAL;
+        dashCards[4].setValueColor(fsiDashColor);
 
         StringBuilder alertsText = new StringBuilder();
         boolean hasAlerts = false;
@@ -557,6 +750,39 @@ public class DashboardController {
         recentSimHistory.add(0, new String[]{icon, iconColor, title, sub});
         if (recentSimHistory.size() > 3) recentSimHistory.remove(3);
         refreshRecentSimsDisplay();
+
+        // Update FRA depot labels — region-aware (Feature 3)
+        if (alertsStock >= 0 && fraLusakaLbl != null) {
+            double regionPct   = regionPct(simRegion);
+            double natTotal    = regionPct > 0 ? alertsStock / regionPct : alertsStock;
+            fraLusakaLbl.setText(fmt(natTotal * 0.30) + " t");
+            fraCopperbeltLbl.setText(fmt(natTotal * 0.25) + " t");
+            fraSouthernLbl.setText(fmt(natTotal * 0.25) + " t");
+            fraEasternLbl.setText(fmt(natTotal * 0.20) + " t");
+            fraTotalLbl.setText("National total: " + fmt(natTotal) + " t  ·  Region: " + simRegion);
+            highlightDepotRow(simRegion);
+            sidebar.setFraAlert(natTotal < PolicyEngine.FRA_RESERVE_THRESHOLD);
+        }
+
+        // Update dashboard 3-series chart (Feature 9)
+        if (records.size() > 1 && dashProdChart != null) {
+            dashProdChart.getData().clear();
+            XYChart.Series<String, Number> prodS = new XYChart.Series<>();
+            prodS.setName("Production (t)");
+            XYChart.Series<String, Number> demS  = new XYChart.Series<>();
+            demS.setName("Demand (t)");
+            XYChart.Series<String, Number> fsiS  = new XYChart.Series<>();
+            fsiS.setName("FSI (%)");
+            for (SimulationRecord r : records) {
+                String m = "M" + r.getMonthNumber();
+                prodS.getData().add(new XYChart.Data<>(m, r.getProduction()));
+                demS.getData().add(new XYChart.Data<>(m, r.getDemand()));
+                fsiS.getData().add(new XYChart.Data<>(m, r.getFoodSecurityIndicator()));
+            }
+            dashProdChart.getData().addAll(prodS, demS, fsiS);
+            dashChartArea.setVisible(true);
+            dashChartArea.setManaged(true);
+        }
     }
 
     // ══════════════════════════════════════════════════════════════════════════
@@ -672,12 +898,32 @@ public class DashboardController {
         fldStorage.setValue("COLD");
         fldStorage.setPrefWidth(220);
 
+        fldRegion = new ComboBox<>(FXCollections.observableArrayList(
+                "Lusaka", "Copperbelt", "Southern", "Eastern"));
+        fldRegion.setValue("Lusaka");
+        fldRegion.setPrefWidth(220);
+        fldRegion.valueProperty().addListener((obs, oldVal, newVal) -> {
+            if (newVal != null && alertsStock >= 0 && fraLusakaLbl != null) {
+                simRegion = newVal;
+                double rPct     = regionPct(simRegion);
+                double natTotal = rPct > 0 ? alertsStock / rPct : alertsStock;
+                fraLusakaLbl.setText(fmt(natTotal * 0.30) + " t");
+                fraCopperbeltLbl.setText(fmt(natTotal * 0.25) + " t");
+                fraSouthernLbl.setText(fmt(natTotal * 0.25) + " t");
+                fraEasternLbl.setText(fmt(natTotal * 0.20) + " t");
+                fraTotalLbl.setText("National total: " + fmt(natTotal) + " t  ·  Region: " + simRegion);
+                highlightDepotRow(simRegion);
+                sidebar.setFraAlert(natTotal < PolicyEngine.FRA_RESERVE_THRESHOLD);
+            }
+        });
+
         GridPane commonGrid = formGrid();
         lblPrice = formLabel("Price per Ton (ZMW):");
-        addRow(commonGrid, "Production Volume (t):", fldProd,   0);
-        addRow(commonGrid, "Market Demand (t):",     fldDemand, 1);
+        addRow(commonGrid, "Production Volume (t):", fldProd,    0);
+        addRow(commonGrid, "Market Demand (t):",     fldDemand,  1);
         commonGrid.add(lblPrice, 0, 2);
         commonGrid.add(fldPrice, 1, 2);
+        addRow(commonGrid, "FRA Region:",            fldRegion,  3);
 
         GridPane maizeGrid = formGrid();
         addRow(maizeGrid, "Months to Simulate:",       fldMonths,   0);
@@ -697,6 +943,18 @@ public class DashboardController {
 
         VBox formContent = new VBox(0, commonGrid, maizeExtra, tomatoExtra);
         formContent.setPadding(new Insets(24));
+
+        // Pre-fill from saved settings (Feature 7)
+        if (appSettings != null) {
+            String p = appSettings.getProperty("default.production", "");
+            String d = appSettings.getProperty("default.demand", "");
+            String pr = appSettings.getProperty("default.price", "");
+            String mo = appSettings.getProperty("default.months", "");
+            if (!p.isEmpty())  fldProd.setText(p);
+            if (!d.isEmpty())  fldDemand.setText(d);
+            if (!pr.isEmpty()) fldPrice.setText(pr);
+            if (!mo.isEmpty()) fldMonths.setText(mo);
+        }
 
         VBox card = new VBox(0, formContent);
         card.setBackground(bg(CARD_BG, 12));
@@ -720,6 +978,11 @@ public class DashboardController {
                 new StatCard("—", "Total Waste",        TEXT_PRI,    false, 0),
                 new StatCard("—", "Est. Revenue (ZMW)", ACCENT_TEAL, true, 0),
         };
+        simCards[0].installInfoTooltip("Positive = surplus; negative = deficit. Drives export restrictions and price adjustments.");
+        simCards[1].installInfoTooltip("Price adjusted for supply/demand imbalance using 0.1 price-elasticity coefficient.");
+        simCards[2].installInfoTooltip("FSI ≥ 80%: green (secure). 60–79%: amber (warning). < 60%: red (critical policy review).");
+        simCards[3].installInfoTooltip("Total storage loss over the simulation period (compound decay for Maize; daily spoilage for Tomato).");
+        simCards[4].installInfoTooltip("Estimated revenue from saleable production at the adjusted market price.");
         HBox simCardsRow = new HBox(14);
         for (StatCard c : simCards) {
             HBox.setHgrow(c, Priority.ALWAYS);
@@ -775,18 +1038,89 @@ public class DashboardController {
         div.setBackground(bg(CARD_BORDER, 0));
         div.setMaxWidth(Double.MAX_VALUE);
 
+        // Monthly breakdown table (Feature 4)
+        monthlyRecords  = FXCollections.observableArrayList();
+        filteredMonthly = new FilteredList<>(monthlyRecords, r -> true);
+        monthlyTable    = buildMonthlyTable();
+
+        ToggleButton allBtn      = new ToggleButton("All Months");
+        ToggleButton surplusBtn  = new ToggleButton("Surplus Only");
+        ToggleGroup  tg          = new ToggleGroup();
+        allBtn.setToggleGroup(tg);     allBtn.setSelected(true);
+        surplusBtn.setToggleGroup(tg);
+        allBtn.setOnAction(e -> filteredMonthly.setPredicate(r -> true));
+        surplusBtn.setOnAction(e -> filteredMonthly.setPredicate(
+                r -> r.getSurplusOrShortage() >= 0));
+
+        HBox toggleRow = new HBox(8, allBtn, surplusBtn);
+        toggleRow.setAlignment(Pos.CENTER_LEFT);
+
+        Label tableHeading = new Label("Monthly Breakdown");
+        tableHeading.setFont(Font.font("Segoe UI", FontWeight.BOLD, 15));
+        tableHeading.setTextFill(Color.web(TEXT_PRI));
+
         VBox section = new VBox(16, resultHeading, div, simCardsRow,
                 chartsRow, pieChart, policyHeading, simPolicyArea,
+                tableHeading, toggleRow, monthlyTable,
                 simPage.getSaveSectionNode());
         section.setBackground(bg(PAGE_BG, 0));
         section.setPadding(new Insets(8, 0, 0, 0));
         return section;
     }
 
+    // ── Monthly breakdown table helpers ───────────────────────────────────────
+
+    @SuppressWarnings("unchecked")
+    private TableView<SimulationRecord> buildMonthlyTable() {
+        TableView<SimulationRecord> tv = new TableView<>(filteredMonthly);
+        tv.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
+        tv.setPrefHeight(240);
+
+        TableColumn<SimulationRecord, Number> mCol = new TableColumn<>("Month");
+        mCol.setCellValueFactory(d ->
+                new javafx.beans.property.ReadOnlyObjectWrapper<>(d.getValue().getMonthNumber()));
+
+        TableColumn<SimulationRecord, Number> prodCol = new TableColumn<>("Production (t)");
+        prodCol.setCellValueFactory(d ->
+                new javafx.beans.property.ReadOnlyObjectWrapper<>(
+                        Math.round(d.getValue().getProduction() * 100.0) / 100.0));
+
+        TableColumn<SimulationRecord, Number> demCol = new TableColumn<>("Demand (t)");
+        demCol.setCellValueFactory(d ->
+                new javafx.beans.property.ReadOnlyObjectWrapper<>(
+                        Math.round(d.getValue().getDemand() * 100.0) / 100.0));
+
+        TableColumn<SimulationRecord, Number> surpCol = new TableColumn<>("Surplus (t)");
+        surpCol.setCellValueFactory(d ->
+                new javafx.beans.property.ReadOnlyObjectWrapper<>(
+                        Math.round(d.getValue().getSurplusOrShortage() * 100.0) / 100.0));
+
+        TableColumn<SimulationRecord, Number> fsiCol = new TableColumn<>("FSI (%)");
+        fsiCol.setCellValueFactory(d ->
+                new javafx.beans.property.ReadOnlyObjectWrapper<>(
+                        Math.round(d.getValue().getFoodSecurityIndicator() * 10.0) / 10.0));
+
+        TableColumn<SimulationRecord, Number> revCol = new TableColumn<>("Revenue (ZMW)");
+        revCol.setCellValueFactory(d ->
+                new javafx.beans.property.ReadOnlyObjectWrapper<>(
+                        Math.round(d.getValue().getRevenue())));
+
+        tv.getColumns().addAll(mCol, prodCol, demCol, surpCol, fsiCol, revCol);
+        return tv;
+    }
+
+    private void updateMonthlyTable(List<SimulationRecord> records) {
+        if (monthlyRecords == null) return;
+        monthlyRecords.setAll(records);
+    }
+
     // ── Run simulation ─────────────────────────────────────────────────────────
 
     private void runSimulation() {
         simErrorLabel.setVisible(false);
+        sidebar.setStatusRunning();
+        simRegion = fldRegion != null && fldRegion.getValue() != null
+                ? fldRegion.getValue() : "Lusaka";
         try {
             double prod   = Double.parseDouble(fldProd.getText().trim().replace(",", ""));
             double demand = Double.parseDouble(fldDemand.getText().trim().replace(",", ""));
@@ -816,12 +1150,18 @@ public class DashboardController {
             simPage.onSimulationComplete(records, simCommodity);
             updateDashboardFromSimulation(records, simCommodity);
             updateStoragePageFromSimulation(records, simCommodity);
+            updateAnalyticsCharts(records);
             simResultsSection.setVisible(true);
             simResultsSection.setManaged(true);
 
+            String timeStr = DateTimeFormatter.ofPattern("HH:mm").format(LocalDateTime.now());
+            sidebar.setStatusComplete(timeStr);
+
         } catch (NumberFormatException ex) {
+            sidebar.setStatusReady();
             showSimError("Invalid input: please enter numeric values in all fields.");
         } catch (IllegalArgumentException ex) {
+            sidebar.setStatusReady();
             showSimError("Parameter error: " + ex.getMessage());
         }
     }
@@ -847,12 +1187,94 @@ public class DashboardController {
         if (fldShelf   != null) fldShelf.clear();
         if (fldDays    != null) fldDays.clear();
         if (fldStorage != null) fldStorage.setValue("COLD");
+        if (fldRegion  != null) fldRegion.setValue("Lusaka");
+        simRegion = "Lusaka";
+        // Reset depot highlights
+        if (fraLusakaRow != null) {
+            fraLusakaRow.setBackground(bg(PAGE_BG, 6));
+            fraCopperbeltRow.setBackground(bg(PAGE_BG, 6));
+            fraSouthernRow.setBackground(bg(PAGE_BG, 6));
+            fraEasternRow.setBackground(bg(PAGE_BG, 6));
+        }
+    }
+
+    // ── Alerts page clear ─────────────────────────────────────────────────────
+
+    private void clearAlertsPage() {
+        alertsStock   = -1;
+        alertsSurplus = 0;
+        alertsProd    = 0;
+        alertsMonths  = 0;
+        if (alertsRuleCardsArea != null) {
+            alertsRuleCardsArea.getChildren().clear();
+            alertsRuleCardsArea.setVisible(false);
+            alertsRuleCardsArea.setManaged(false);
+        }
+        if (alertsRecommendationBox != null) {
+            alertsRecommendationBox.setVisible(false);
+            alertsRecommendationBox.setManaged(false);
+        }
+        if (alertsNoDataBox != null) {
+            alertsNoDataBox.setVisible(true);
+            alertsNoDataBox.setManaged(true);
+        }
+        if (alertsEventCount != null) {
+            alertsEventCount.setText("0 triggered");
+            alertsEventCount.setBackground(bg(TEXT_MUTED, 10));
+        }
+        if (policyHistoryRecords != null) policyHistoryRecords.clear();
+        // Reset FRA depot panel labels
+        if (fraLusakaLbl != null) {
+            fraLusakaLbl.setText("— t");
+            fraCopperbeltLbl.setText("— t");
+            fraSouthernLbl.setText("— t");
+            fraEasternLbl.setText("— t");
+            fraTotalLbl.setText("No data");
+        }
+        if (fraLusakaRow != null) {
+            fraLusakaRow.setBackground(bg(PAGE_BG, 6));
+            fraCopperbeltRow.setBackground(bg(PAGE_BG, 6));
+            fraSouthernRow.setBackground(bg(PAGE_BG, 6));
+            fraEasternRow.setBackground(bg(PAGE_BG, 6));
+        }
+        sidebar.setFraAlert(false);
+    }
+
+    // ── Region helpers ────────────────────────────────────────────────────────
+
+    private double regionPct(String region) {
+        switch (region) {
+            case "Copperbelt": return 0.25;
+            case "Southern":   return 0.25;
+            case "Eastern":    return 0.20;
+            default:           return 0.30; // Lusaka
+        }
+    }
+
+    private void highlightDepotRow(String region) {
+        if (fraLusakaRow == null) return;
+        fraLusakaRow.setBackground(bg(PAGE_BG, 6));
+        fraCopperbeltRow.setBackground(bg(PAGE_BG, 6));
+        fraSouthernRow.setBackground(bg(PAGE_BG, 6));
+        fraEasternRow.setBackground(bg(PAGE_BG, 6));
+        HBox target;
+        switch (region) {
+            case "Copperbelt": target = fraCopperbeltRow; break;
+            case "Southern":   target = fraSouthernRow;   break;
+            case "Eastern":    target = fraEasternRow;    break;
+            default:           target = fraLusakaRow;     break;
+        }
+        target.setBackground(bg(CARD_BORDER, 6));
     }
 
     // ── Populate Maize results ─────────────────────────────────────────────────
 
     private void populateMaizeResults(Maize maize, List<SimulationRecord> records,
             double demand, int months) {
+        // Save for export report
+        lastMaize = maize;
+        lastMaizeRecords = records;
+
         double totalWaste = 0, totalRevenue = 0;
         for (SimulationRecord r : records) {
             totalWaste   += r.getWaste();
@@ -865,12 +1287,21 @@ public class DashboardController {
                 maize.getProductionVolume());
         double fsi = last == null ? 0 : last.getFoodSecurityIndicator();
 
+        // Save values for the alerts rule cards
+        alertsStock   = last == null ? 0 : last.getProduction();
+        alertsSurplus = lastSurplus;
+        alertsProd    = maize.getProductionVolume();
+        alertsMonths  = months;
+
         simCards[0].update((lastSurplus >= 0 ? "+" : "") + fmt(lastSurplus) + "t",
                 "Surplus / Shortage",
                 Math.min(1, Math.abs(lastSurplus) / maize.getProductionVolume()));
         simCards[1].update("ZMW " + fmtI(adjPrice), "Adjusted Price / Ton",
                 Math.min(1, adjPrice / 8_000));
         simCards[2].update(String.format("%.1f%%", fsi), "Food Security", fsi / 100.0);
+        // Color-code the FSI simulation card
+        String fsiColor = fsi >= 80 ? ACCENT_TEAL : fsi >= 60 ? GOLD : CORAL;
+        simCards[2].setValueColor(fsiColor);
         simCards[3].update(fmt(totalWaste) + "t", "Total Waste (" + months + "mo)",
                 Math.min(1, totalWaste / maize.getProductionVolume()));
         simCards[4].update(fmtRev(totalRevenue), "Est. Revenue",
@@ -893,14 +1324,17 @@ public class DashboardController {
         lineChart.getData().clear();
         XYChart.Series<Number, Number> lossSeries = new XYChart.Series<>();
         lossSeries.setName("Remaining stock (t)");
-        List<Double> schedule = storageSim.getMaizeLossSchedule(maize, months);
-        for (int i = 0; i < schedule.size(); i++) {
-            lossSeries.getData().add(new XYChart.Data<>(i, schedule.get(i)));
+        double initialStock = maize.getProductionVolume();
+        double lossRate     = maize.getLossPercentagePerMonth();
+        for (int month = 0; month <= months; month++) {
+            double remaining = initialStock * Math.pow((1.0 - lossRate / 100.0), month);
+            lossSeries.getData().add(new XYChart.Data<>(month, remaining));
         }
         lineChart.getData().add(lossSeries);
         lineChart.setTitle("Compounded Storage Loss Over " + months + " Months");
 
         populatePieChart(records);
+        updateMonthlyTable(records);
 
         String policyStr = policyEngine.evaluateAll(
                 maize.getProductionVolume(), lastSurplus, maize.getProductionVolume(),
@@ -921,12 +1355,21 @@ public class DashboardController {
         double adjPrice = supplyEngine.adjustPrice(tomato.getPricePerTon(), surplus,
                 tomato.getProductionVolume()) / 40.0;
 
+        // Save for alerts page and FRA depot panel
+        alertsStock   = tomato.getProductionVolume();
+        alertsSurplus = surplus;
+        alertsProd    = tomato.getProductionVolume();
+        alertsMonths  = days;
+
         simCards[0].update((surplus >= 0 ? "+" : "") + fmt(surplus) + "t",
                 "Surplus / Shortage",
                 Math.min(1, Math.abs(surplus) / tomato.getProductionVolume()));
         simCards[1].update("ZMW " + fmtI(adjPrice), "Adjusted Price / Crate",
                 Math.min(1, adjPrice / 200));
         simCards[2].update(String.format("%.1f%%", fsi), "Food Security", fsi / 100.0);
+        // Color-code the FSI simulation card
+        String fsiTColor = fsi >= 80 ? ACCENT_TEAL : fsi >= 60 ? GOLD : CORAL;
+        simCards[2].setValueColor(fsiTColor);
         simCards[3].update(String.format("%.1f", waste) + "t", "Total Spoilage",
                 Math.min(1, waste / tomato.getProductionVolume()));
         simCards[4].update(fmtRev(revenue), "Est. Revenue",
@@ -955,6 +1398,7 @@ public class DashboardController {
         lineChart.setTitle("Tomato Spoilage Curve (cumulative)");
 
         populatePieChart(records);
+        updateMonthlyTable(records);
 
         String policyStr = "Export check   : "
                 + policyEngine.checkExportRestriction(surplus, tomato.getProductionVolume())
@@ -1146,108 +1590,223 @@ public class DashboardController {
         page.setPadding(new Insets(24, 28, 40, 28));
         page.setBackground(bg(PAGE_BG, 0));
 
-        Label title = new Label("Policy Alerts — Interactive Checker");
+        // Title row with event counter badge and clear button
+        Label title = new Label("FRA Reserves");
         title.setFont(Font.font("Segoe UI", FontWeight.BOLD, 22));
         title.setTextFill(Color.web(TEXT_PRI));
 
-        Label desc = new Label(
-                "Enter stock levels below to evaluate FRA, export, storage, and price-floor policies.");
+        alertsEventCount = new Label("0 triggered");
+        alertsEventCount.setFont(Font.font("Segoe UI", FontWeight.BOLD, 11));
+        alertsEventCount.setTextFill(Color.WHITE);
+        alertsEventCount.setBackground(bg(TEXT_MUTED, 10));
+        alertsEventCount.setPadding(new Insets(4, 10, 4, 10));
+
+        Button clearAlertsBtn = actionButton("✕  Clear", CORAL);
+        clearAlertsBtn.setFont(Font.font("Segoe UI", FontWeight.BOLD, 11));
+        clearAlertsBtn.setPadding(new Insets(4, 12, 4, 12));
+        clearAlertsBtn.setOnAction(e -> clearAlertsPage());
+
+        Region alertsSpacer = new Region();
+        HBox.setHgrow(alertsSpacer, Priority.ALWAYS);
+        HBox titleRow = new HBox(12, title, alertsEventCount, alertsSpacer, clearAlertsBtn);
+        titleRow.setAlignment(Pos.CENTER_LEFT);
+
+        Label desc = new Label("Rule checks based on your last simulation run · click FRA Reserves in the sidebar to jump here.");
         desc.setFont(Font.font("Segoe UI", 13));
         desc.setTextFill(Color.web(TEXT_SEC));
+        desc.setWrapText(true);
 
-        alertFldStock   = blankField("e.g. 480,000");
-        alertFldSurplus = blankField("e.g. 31,500");
-        alertFldProd    = blankField("e.g. 110,000");
-        alertFldMonths  = blankField("e.g. 6");
-        alertFldDays    = blankField("e.g. 7  (or -1 to skip)");
-        alertFldShelf   = blankField("e.g. 14  (or -1 to skip)");
+        // Placeholder
+        Label noDataLbl = new Label("No simulation data — run a Maize simulation first.");
+        noDataLbl.setFont(Font.font("Segoe UI", 14));
+        noDataLbl.setTextFill(Color.web(TEXT_MUTED));
+        alertsNoDataBox = new VBox(noDataLbl);
+        alertsNoDataBox.setPadding(new Insets(24, 0, 0, 0));
 
-        GridPane alertGrid = formGrid();
-        addRow(alertGrid, "National Stock (t):",              alertFldStock,   0);
-        addRow(alertGrid, "Surplus (t):",                     alertFldSurplus, 1);
-        addRow(alertGrid, "Production (t):",                  alertFldProd,    2);
-        addRow(alertGrid, "Months Stored:",                   alertFldMonths,  3);
-        addRow(alertGrid, "Days Stored (tomato, -1 to skip):", alertFldDays,   4);
-        addRow(alertGrid, "Shelf Life (days, -1 to skip):",   alertFldShelf,   5);
+        // Rule card area
+        alertsRuleCardsArea = new VBox(14);
+        alertsRuleCardsArea.setVisible(false);
+        alertsRuleCardsArea.setManaged(false);
 
-        VBox alertFormCard = new VBox(0, alertGrid);
-        alertFormCard.setPadding(new Insets(24));
-        alertFormCard.setBackground(bg(CARD_BG, 12));
-        alertFormCard.setBorder(new Border(new BorderStroke(Color.web(CARD_BORDER),
-                BorderStrokeStyle.SOLID, new CornerRadii(12), new BorderWidths(1))));
-        DropShadow s = new DropShadow();
-        s.setRadius(12);
-        s.setOffsetY(4);
-        s.setColor(Color.color(0, 0, 0, 0.35));
-        alertFormCard.setEffect(s);
+        // Combined recommendation box
+        alertsRecommendationBox = new VBox(8);
+        alertsRecommendationBox.setPadding(new Insets(16));
+        alertsRecommendationBox.setBackground(bg(CARD_BG, 10));
+        alertsRecommendationBox.setBorder(new Border(new BorderStroke(Color.web(AMBER),
+                BorderStrokeStyle.SOLID, new CornerRadii(10), new BorderWidths(1.5))));
+        alertsRecommendationBox.setVisible(false);
+        alertsRecommendationBox.setManaged(false);
 
-        Button checkBtn = new Button("⚑  Check Policies");
-        checkBtn.setTextFill(Color.web("#1A1A1A"));
-        checkBtn.setFont(Font.font("Segoe UI", FontWeight.BOLD, 13));
-        checkBtn.setBackground(bg(GOLD, 8));
-        checkBtn.setCursor(javafx.scene.Cursor.HAND);
-        checkBtn.setPadding(new Insets(12, 20, 12, 20));
-        checkBtn.setOnAction(e -> runAlertCheck());
+        // Policy history table
+        policyHistoryRecords = FXCollections.observableArrayList();
+        policyHistoryTable = buildPolicyHistoryTable();
 
-        Button alertClearBtn = new Button("Clear");
-        alertClearBtn.setTextFill(Color.web(TEXT_SEC));
-        alertClearBtn.setFont(Font.font("Segoe UI", FontWeight.BOLD, 13));
-        alertClearBtn.setBackground(bg(INPUT_BG, 8));
-        alertClearBtn.setBorder(new Border(new BorderStroke(Color.web(INPUT_BORDER),
-                BorderStrokeStyle.SOLID, new CornerRadii(8), new BorderWidths(1))));
-        alertClearBtn.setCursor(javafx.scene.Cursor.HAND);
-        alertClearBtn.setPadding(new Insets(12, 20, 12, 20));
-        alertClearBtn.setOnAction(e -> {
-            alertFldStock.clear();
-            alertFldSurplus.clear();
-            alertFldProd.clear();
-            alertFldMonths.clear();
-            alertFldDays.clear();
-            alertFldShelf.clear();
-            alertsResultArea.setText("Run a simulation or click Check Policies to see results.");
-        });
+        Label histLabel = new Label("Policy Event Log");
+        histLabel.setFont(Font.font("Segoe UI", FontWeight.BOLD, 14));
+        histLabel.setTextFill(Color.web(TEXT_PRI));
 
-        HBox alertBtnRow = new HBox(12, checkBtn, alertClearBtn);
-        alertBtnRow.setAlignment(Pos.CENTER_LEFT);
+        // Hidden backward-compat fields
+        alertsResultArea = new TextArea();
+        alertsResultArea.setVisible(false); alertsResultArea.setManaged(false);
+        alertFldStock = new TextField(); alertFldSurplus = new TextField();
+        alertFldProd  = new TextField(); alertFldMonths  = new TextField();
+        alertFldDays  = new TextField(); alertFldShelf   = new TextField();
 
-        alertsResultArea = new TextArea("Run a simulation or click Check Policies to see results.");
-        alertsResultArea.setEditable(false);
-        alertsResultArea.setPrefRowCount(12);
-
-        page.getChildren().addAll(title, desc, alertFormCard, alertBtnRow, alertsResultArea);
+        page.getChildren().addAll(titleRow, desc, alertsNoDataBox,
+                alertsRuleCardsArea, alertsRecommendationBox,
+                histLabel, policyHistoryTable, alertsResultArea);
         return page;
     }
 
-    private void runAlertCheck() {
-        try {
-            double stock   = Double.parseDouble(alertFldStock.getText().trim().replace(",", ""));
-            double surplus = Double.parseDouble(alertFldSurplus.getText().trim().replace(",", ""));
-            double prod    = Double.parseDouble(alertFldProd.getText().trim().replace(",", ""));
-            int    months  = Integer.parseInt(alertFldMonths.getText().trim().replace(",", ""));
-            int    days    = Integer.parseInt(alertFldDays.getText().trim().replace(",", ""));
-            int    shelf   = Integer.parseInt(alertFldShelf.getText().trim().replace(",", ""));
+    @SuppressWarnings("unchecked")
+    private TableView<SimulationRecord> buildPolicyHistoryTable() {
+        TableView<SimulationRecord> tv = new TableView<>(policyHistoryRecords);
+        tv.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
+        tv.setPrefHeight(200);
 
-            List<PolicyEngine.Alert> alerts = policyEngine.evaluateAllWithSeverity(
-                    stock, surplus, prod, months, days, shelf);
+        TableColumn<SimulationRecord, Number> mCol = new TableColumn<>("Month");
+        mCol.setCellValueFactory(d ->
+                new javafx.beans.property.ReadOnlyObjectWrapper<>(d.getValue().getMonthNumber()));
 
-            StringBuilder sb = new StringBuilder("=== POLICY EVALUATION ===\n\n");
-            for (PolicyEngine.Alert a : alerts) {
-                sb.append(String.format("[%-8s] %s%n", a.level, a.message));
+        TableColumn<SimulationRecord, Number> surpCol = new TableColumn<>("Surplus (t)");
+        surpCol.setCellValueFactory(d ->
+                new javafx.beans.property.ReadOnlyObjectWrapper<>(
+                        Math.round(d.getValue().getSurplusOrShortage() * 10.0) / 10.0));
+
+        TableColumn<SimulationRecord, Number> fsiCol = new TableColumn<>("FSI (%)");
+        fsiCol.setCellValueFactory(d ->
+                new javafx.beans.property.ReadOnlyObjectWrapper<>(
+                        Math.round(d.getValue().getFoodSecurityIndicator() * 10.0) / 10.0));
+
+        TableColumn<SimulationRecord, String> alertCol = new TableColumn<>("Policy Alerts");
+        alertCol.setCellValueFactory(d ->
+                new javafx.beans.property.ReadOnlyObjectWrapper<>(
+                        d.getValue().getPolicyAlerts() == null ? "—" : d.getValue().getPolicyAlerts()));
+
+        tv.getColumns().addAll(mCol, surpCol, fsiCol, alertCol);
+        return tv;
+    }
+
+    /** Rebuilds the three policy rule cards from the most recent maize simulation values. */
+    private void updateAlertsFromSimulation() {
+        if (alertsRuleCardsArea == null || alertsStock < 0) return;
+
+        alertsNoDataBox.setVisible(false);
+        alertsNoDataBox.setManaged(false);
+        alertsRuleCardsArea.getChildren().clear();
+
+        boolean fraTriggered     = alertsStock < PolicyEngine.FRA_RESERVE_THRESHOLD;
+        boolean exportTriggered  = alertsSurplus > alertsProd * PolicyEngine.EXPORT_SURPLUS_FRACTION;
+        boolean storageTriggered = alertsMonths  > PolicyEngine.MAIZE_MAX_STORAGE_MONTHS;
+
+        String fraData     = String.format("Stock: %s t  |  Threshold: %,.0f t",
+                             fmt(alertsStock), PolicyEngine.FRA_RESERVE_THRESHOLD);
+        String exportData  = String.format("Surplus: %s t  |  20%% trigger: %s t",
+                             fmt(alertsSurplus), fmt(alertsProd * PolicyEngine.EXPORT_SURPLUS_FRACTION));
+        String storageData = String.format("Months: %d  |  Max: %d months",
+                             alertsMonths, PolicyEngine.MAIZE_MAX_STORAGE_MONTHS);
+
+        alertsRuleCardsArea.getChildren().add(buildRuleCard(
+            "FRA Reserve Alert", fraTriggered,
+            "Restrict exports and activate strategic reserves.", fraData));
+        alertsRuleCardsArea.getChildren().add(buildRuleCard(
+            "Export Review Required", exportTriggered,
+            "Review export quotas — surplus exceeds 20% of production.", exportData));
+        alertsRuleCardsArea.getChildren().add(buildRuleCard(
+            "Storage Limit Warning", storageTriggered,
+            "Move stock to market immediately to avoid total loss.", storageData));
+
+        alertsRuleCardsArea.setVisible(true);
+        alertsRuleCardsArea.setManaged(true);
+
+        // Update event counter badge
+        int count = (fraTriggered ? 1 : 0) + (exportTriggered ? 1 : 0) + (storageTriggered ? 1 : 0);
+        if (alertsEventCount != null) {
+            alertsEventCount.setText(count + " triggered");
+            alertsEventCount.setBackground(bg(count > 0 ? DANGER : SUCCESS, 10));
+        }
+
+        // Recommendation box
+        if (alertsRecommendationBox != null) {
+            alertsRecommendationBox.getChildren().clear();
+            if (count > 0) {
+                Label recHead = new Label("⚠  Recommended Actions");
+                recHead.setFont(Font.font("Segoe UI", FontWeight.BOLD, 13));
+                recHead.setTextFill(Color.web(AMBER));
+                alertsRecommendationBox.getChildren().add(recHead);
+                if (fraTriggered)
+                    alertsRecommendationBox.getChildren().add(recItem(
+                        "Activate FRA strategic reserves and suspend export licences immediately."));
+                if (exportTriggered)
+                    alertsRecommendationBox.getChildren().add(recItem(
+                        "Cap export volumes at 20% of production and review distribution quotas."));
+                if (storageTriggered)
+                    alertsRecommendationBox.getChildren().add(recItem(
+                        "Fast-track market offtake — quality degradation accelerates after 6 months."));
+                alertsRecommendationBox.setVisible(true);
+                alertsRecommendationBox.setManaged(true);
+            } else {
+                alertsRecommendationBox.setVisible(false);
+                alertsRecommendationBox.setManaged(false);
             }
-            sb.append("\n--- Individual Checks ---\n");
-            sb.append("FRA Reserve    : ").append(policyEngine.checkFraReserve(stock)).append("\n");
-            sb.append("Export         : ").append(policyEngine.checkExportRestriction(surplus, prod)).append("\n");
-            sb.append("Maize Storage  : ").append(policyEngine.checkMaizeStorageTime(months)).append("\n");
-            if (days >= 0 && shelf > 0) {
-                sb.append("Tomato Shelf   : ")
-                  .append(policyEngine.checkTomatoStorageTime(days, shelf)).append("\n");
-            }
-            alertsResultArea.setText(sb.toString());
-        } catch (NumberFormatException ex) {
-            alertsResultArea.setText(
-                    "Input error: please enter numeric values in all fields.\n" + ex.getMessage());
         }
     }
+
+    private Label recItem(String text) {
+        Label lbl = new Label("• " + text);
+        lbl.setFont(Font.font("Segoe UI", 12));
+        lbl.setTextFill(Color.web(TEXT_SEC));
+        lbl.setWrapText(true);
+        return lbl;
+    }
+
+    /** Builds a single styled rule card with a coloured left border (Feature 8). */
+    private HBox buildRuleCard(String ruleName, boolean triggered,
+                               String recommendation, String dataLine) {
+        String borderColor = triggered ? DANGER : ACCENT_TEAL;
+        String statusText  = triggered ? "TRIGGERED" : "OK";
+        String statusColor = triggered ? DANGER : ACCENT_TEAL;
+
+        Label nameLbl = new Label(ruleName);
+        nameLbl.setFont(Font.font("Segoe UI", FontWeight.BOLD, 14));
+        nameLbl.setTextFill(Color.web(TEXT_PRI));
+
+        Label statusLbl = new Label(statusText);
+        statusLbl.setFont(Font.font("Segoe UI", FontWeight.BOLD, 12));
+        statusLbl.setTextFill(Color.web(statusColor));
+        statusLbl.setBackground(bg(triggered ? "#3d1111" : "#0d2d29", 6));
+        statusLbl.setPadding(new Insets(2, 8, 2, 8));
+
+        Label recLbl = new Label(recommendation);
+        recLbl.setFont(Font.font("Segoe UI", 12));
+        recLbl.setTextFill(Color.web(TEXT_SEC));
+        recLbl.setWrapText(true);
+
+        Label dataLbl = new Label(dataLine);
+        dataLbl.setFont(Font.font("Segoe UI", 11));
+        dataLbl.setTextFill(Color.web(TEXT_MUTED));
+
+        HBox nameRow = new HBox(10, nameLbl, statusLbl);
+        nameRow.setAlignment(Pos.CENTER_LEFT);
+        VBox contentBox = new VBox(6, nameRow, recLbl, dataLbl);
+        contentBox.setPadding(new Insets(14));
+
+        Region leftBorder = new Region();
+        leftBorder.setPrefWidth(4);
+        leftBorder.setMinWidth(4);
+        leftBorder.setMaxHeight(Double.MAX_VALUE);
+        leftBorder.setBackground(bg(borderColor, 0));
+
+        HBox card = new HBox(0, leftBorder, contentBox);
+        card.setAlignment(Pos.CENTER_LEFT);
+        card.setBackground(bg(CARD_BG, 8));
+        card.setBorder(new Border(new BorderStroke(Color.web(CARD_BORDER),
+                BorderStrokeStyle.SOLID, new CornerRadii(8), new BorderWidths(1))));
+        return card;
+    }
+
+    // Kept for backward compatibility — also triggers visual rule card refresh
+    private void runAlertCheck() { /* replaced by updateAlertsFromSimulation */ }
 
     private void updateAlertsResultArea(List<SimulationRecord> records) {
         StringBuilder sb = new StringBuilder("=== POLICY ALERTS FROM LAST SIMULATION ===\n\n");
@@ -1256,6 +1815,11 @@ public class DashboardController {
         }
         if (alertsResultArea != null)
             alertsResultArea.setText(sb.toString());
+        // Populate policy history table
+        if (policyHistoryRecords != null)
+            policyHistoryRecords.setAll(records);
+        // Refresh the visible rule cards whenever simulation data changes
+        updateAlertsFromSimulation();
     }
 
     // ══════════════════════════════════════════════════════════════════════════
@@ -1294,14 +1858,19 @@ public class DashboardController {
         page.setBackground(bg(PAGE_BG, 0));
 
         // ── Page header ──────────────────────────────────────────────────────
-        Label title = new Label("About AgriTwin-ZM");
+        Label title = new Label("About");
         title.setFont(Font.font("Segoe UI", FontWeight.BOLD, 26));
         title.setTextFill(Color.web(TEXT_PRI));
 
-        Label subtitle = new Label(
-                "Digital Twin Simulation Platform for Zambian Maize & Tomato Supply Chains");
-        subtitle.setFont(Font.font("Segoe UI", 14));
-        subtitle.setTextFill(Color.web(TEXT_SEC));
+        // Keep settings fields initialised (used by loadSettings / saveSettings)
+        // but do not show them on this page.
+        settingsProdFld        = settingsField("Default Production Volume (t)", "default.production");
+        settingsDemandFld      = settingsField("Default Market Demand (t)",     "default.demand");
+        settingsPriceFld       = settingsField("Default Price per Ton (ZMW)",   "default.price");
+        settingsMonthsFld      = settingsField("Default Months to Simulate",    "default.months");
+        settingsInstitutionFld = settingsField("Institution Name",              "institution.name");
+
+        page.getChildren().add(title);
 
         // ── Project overview card ─────────────────────────────────────────────
         Label overviewIcon = new Label("🌾");
@@ -1370,7 +1939,7 @@ public class DashboardController {
         HBox.setHgrow(tomatoCard, Priority.ALWAYS);
         HBox modelsRow = new HBox(18, maizeCard, tomatoCard);
 
-        page.getChildren().addAll(title, subtitle, overviewCard, twoCol, modelsRow);
+        page.getChildren().addAll(overviewCard, twoCol, modelsRow);
         return page;
     }
 
@@ -1434,22 +2003,37 @@ public class DashboardController {
 
     private void handleNavSelect(String label) {
         switch (label) {
-            case "Dashboard":    selectPage(PG_DASHBOARD);  break;
-            case "Simulation":   selectPage(PG_SIMULATION); break;
-            case "Storage":      selectPage(PG_STORAGE);    break;
-            case "Policy Alerts":selectPage(PG_ALERTS);     break;
-            case "Reports":      selectPage(PG_REPORTS);    break;
-            case "Information":  selectPage(PG_SETTINGS);   break;
+            case "Dashboard":     selectPage(PG_DASHBOARD,  "Dashboard");     break;
+            case "Simulate":      selectPage(PG_SIMULATION, "Simulate");      break;
+            case "Analytics":     selectPage(PG_ANALYTICS,  "Analytics");     break;
+            case "Storage":       selectPage(PG_STORAGE,    "Storage");       break;
+            case "FRA Reserves":  selectPage(PG_ALERTS,     "FRA Reserves");  break;
+            case "Season Report": selectPage(PG_REPORTS,    "Season Report"); break;
+            case "Export CSV":    handleExportCsv();                           return;
+            case "Settings":      selectPage(PG_SETTINGS,   "About");         break;
+            case "About":         selectPage(PG_SETTINGS,   "About");         break;
+            // search-bar / legacy aliases
+            case "Simulation":    selectPage(PG_SIMULATION, "Simulate");      break;
+            case "Policy Alerts": selectPage(PG_ALERTS,     "FRA Reserves");  break;
+            case "Reports":       selectPage(PG_REPORTS,    "Season Report"); break;
+            case "Information":   selectPage(PG_SETTINGS,   "About");         break;
             default: break;
         }
     }
 
     private void selectPage(int idx) {
+        String[] map = {"Dashboard", "Simulate", "Storage", "FRA Reserves",
+                        "Season Report", "About", "Analytics"};
+        String label = (idx >= 0 && idx < map.length) ? map[idx] : null;
+        selectPage(idx, label);
+    }
+
+    private void selectPage(int idx, String sidebarLabel) {
         if (pages == null || idx < 0 || idx >= pages.length) return;
         VBox incoming = pages[idx];
         incoming.setOpacity(0.0);
         contentScroll.setContent(incoming);
-        sidebar.setSelected(idx);
+        if (sidebarLabel != null) sidebar.setSelected(sidebarLabel);
         FadeTransition ft = new FadeTransition(Duration.millis(200), incoming);
         ft.setFromValue(0.0);
         ft.setToValue(1.0);
@@ -1515,6 +2099,7 @@ public class DashboardController {
         return lbl;
     }
 
+
     private TextField blankField(String promptText) {
         TextField tf = new TextField();
         tf.setPromptText(promptText);
@@ -1552,6 +2137,299 @@ public class DashboardController {
     private Background bg(String hex, double radius) {
         Color c = "transparent".equalsIgnoreCase(hex) ? Color.TRANSPARENT : Color.web(hex);
         return new Background(new BackgroundFill(c, new CornerRadii(radius), Insets.EMPTY));
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // Export report content supplier (used by ReportsPage Save button)
+    // ══════════════════════════════════════════════════════════════════════════
+
+    /** Builds the full human-readable report text from last maize and tomato simulation state. */
+    private String generateExportReportContent() {
+        DateTimeFormatter dtFmt = DateTimeFormatter.ofPattern("dd MMM yyyy, HH:mm");
+        StringBuilder sb = new StringBuilder();
+        sb.append("===========================\n");
+        sb.append("AgriTwin-ZM Simulation Report\n");
+        sb.append("Generated: ").append(LocalDateTime.now().format(dtFmt)).append("\n");
+        sb.append("===========================\n\n");
+
+        sb.append("MAIZE SIMULATION\n");
+        sb.append("-----------------\n");
+        if (lastMaizeRecords != null && !lastMaizeRecords.isEmpty()) {
+            double firstProd   = lastMaizeRecords.get(0).getProduction()
+                               + lastMaizeRecords.get(0).getWaste();
+            double totalDemand = lastMaizeRecords.stream().mapToDouble(SimulationRecord::getDemand).sum();
+            double totalSurp   = lastMaizeRecords.stream().mapToDouble(SimulationRecord::getSurplusOrShortage).sum();
+            double totalWaste  = lastMaizeRecords.stream().mapToDouble(SimulationRecord::getWaste).sum();
+            double totalRev    = lastMaizeRecords.stream().mapToDouble(SimulationRecord::getRevenue).sum();
+            double avgFsi      = lastMaizeRecords.stream()
+                                    .mapToDouble(SimulationRecord::getFoodSecurityIndicator)
+                                    .average().orElse(0);
+            sb.append(String.format("Production Volume : %.2f t%n", firstProd));
+            sb.append(String.format("Market Demand     : %.2f t%n", totalDemand));
+            sb.append(String.format("Surplus/Shortage  : %.2f t%n", totalSurp));
+            sb.append(String.format("Storage Waste     : %.2f t%n", totalWaste));
+            sb.append(String.format("Estimated Revenue : ZMW %,.2f%n", totalRev));
+            sb.append(String.format("Food Security     : %.1f%%%n", avgFsi));
+        } else {
+            sb.append("No maize simulation data\n");
+        }
+
+        sb.append("\nPOLICY ALERTS\n");
+        sb.append("-----------------\n");
+        if (alertsStock >= 0) {
+            String fra  = alertsStock < PolicyEngine.FRA_RESERVE_THRESHOLD ? "TRIGGERED" : "OK";
+            String exp  = alertsSurplus > alertsProd * PolicyEngine.EXPORT_SURPLUS_FRACTION ? "TRIGGERED" : "OK";
+            String stor = alertsMonths > PolicyEngine.MAIZE_MAX_STORAGE_MONTHS ? "TRIGGERED" : "OK";
+            sb.append("FRA Reserve Alert      : ").append(fra).append("\n");
+            sb.append("Export Review Required : ").append(exp).append("\n");
+            sb.append("Storage Limit Warning  : ").append(stor).append("\n");
+            sb.append("\nREGIONAL FRA DEPOT ALLOCATIONS\n");
+            sb.append("-----------------\n");
+            sb.append(String.format("Total FRA Stock   : %.2f t%n", alertsStock));
+            sb.append(String.format("Lusaka     (30%%) : %.2f t%n", alertsStock * 0.30));
+            sb.append(String.format("Copperbelt (25%%) : %.2f t%n", alertsStock * 0.25));
+            sb.append(String.format("Southern   (25%%) : %.2f t%n", alertsStock * 0.25));
+            sb.append(String.format("Eastern    (20%%) : %.2f t%n", alertsStock * 0.20));
+            sb.append(String.format("FRA Status        : %s%n",
+                    alertsStock < PolicyEngine.FRA_RESERVE_THRESHOLD
+                            ? "BELOW RESERVE THRESHOLD — activate emergency measures"
+                            : "Within safe reserve levels"));
+        } else {
+            sb.append("FRA Reserve Alert      : N/A\n");
+            sb.append("Export Review Required : N/A\n");
+            sb.append("Storage Limit Warning  : N/A\n");
+            sb.append("\nREGIONAL FRA DEPOT ALLOCATIONS\n");
+            sb.append("-----------------\n");
+            sb.append("No simulation data available\n");
+        }
+
+        sb.append("\nTOMATO SIMULATION\n");
+        sb.append("-----------------\n");
+        if (lastTomato != null) {
+            lastTomato.setDaysStored(lastTomatoDays);
+            sb.append(String.format("Production Volume : %.2f t%n", lastTomato.getProductionVolume()));
+            sb.append(String.format("Storage Type      : %s%n", lastTomato.getStorageType()));
+            sb.append(String.format("Days Stored       : %d%n", lastTomatoDays));
+            sb.append(String.format("Spoilage          : %.2f t%n", lastTomato.calculateSpoilage()));
+            sb.append(String.format("Remaining Volume  : %.2f t%n", lastTomato.getRemainingVolume()));
+            sb.append(String.format("Revenue           : ZMW %,.2f%n", lastTomato.calculateRevenue()));
+            sb.append(String.format("Storage Status    : %s%n", lastTomato.getStorageStatusMessage()));
+        } else {
+            sb.append("No tomato simulation data\n");
+        }
+        sb.append("\n===========================\n");
+        return sb.toString();
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // SETTINGS LOAD / SAVE  (Feature 7)
+    // ══════════════════════════════════════════════════════════════════════════
+
+    private void loadSettings() {
+        appSettings = new Properties();
+        File f = new File(SETTINGS_FILE);
+        if (f.exists()) {
+            try (FileInputStream fis = new FileInputStream(f)) {
+                appSettings.load(fis);
+            } catch (IOException ignored) {}
+        }
+    }
+
+    private void saveSettings() {
+        if (appSettings == null) appSettings = new Properties();
+        appSettings.setProperty("default.production",  settingsProdFld.getText().trim());
+        appSettings.setProperty("default.demand",      settingsDemandFld.getText().trim());
+        appSettings.setProperty("default.price",       settingsPriceFld.getText().trim());
+        appSettings.setProperty("default.months",      settingsMonthsFld.getText().trim());
+        appSettings.setProperty("institution.name",    settingsInstitutionFld.getText().trim());
+        try (FileOutputStream fos = new FileOutputStream(SETTINGS_FILE)) {
+            appSettings.store(fos, "AgriTwin-ZM Settings");
+        } catch (IOException ignored) {}
+        // Apply immediately to simulation form
+        String p = settingsProdFld.getText().trim();
+        String d = settingsDemandFld.getText().trim();
+        String pr = settingsPriceFld.getText().trim();
+        String m = settingsMonthsFld.getText().trim();
+        if (!p.isEmpty()  && fldProd    != null) fldProd.setText(p);
+        if (!d.isEmpty()  && fldDemand  != null) fldDemand.setText(d);
+        if (!pr.isEmpty() && fldPrice   != null) fldPrice.setText(pr);
+        if (!m.isEmpty()  && fldMonths  != null) fldMonths.setText(m);
+    }
+
+    /** Creates a TextField pre-filled from appSettings for the given key. */
+    private TextField settingsField(String prompt, String settingsKey) {
+        TextField tf = blankField(prompt);
+        if (appSettings != null) {
+            String val = appSettings.getProperty(settingsKey, "");
+            if (!val.isEmpty()) tf.setText(val);
+        }
+        return tf;
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // EXPORT CSV  (Feature 6)
+    // ══════════════════════════════════════════════════════════════════════════
+
+    private void handleExportCsv() {
+        List<SimulationRecord> records = lastMaizeRecords != null ? lastMaizeRecords : null;
+        if (records == null || records.isEmpty()) {
+            Alert a = new Alert(Alert.AlertType.WARNING,
+                    "Run a Maize simulation first to export CSV data.", ButtonType.OK);
+            a.setHeaderText(null); a.showAndWait(); return;
+        }
+        FileChooser fc = new FileChooser();
+        fc.setTitle("Export Simulation as CSV");
+        fc.setInitialFileName("AgriTwin_" + LocalDate.now() + ".csv");
+        fc.getExtensionFilters().add(
+                new FileChooser.ExtensionFilter("CSV Files (*.csv)", "*.csv"));
+        File file = fc.showSaveDialog(
+                contentScroll.getScene() == null ? null : contentScroll.getScene().getWindow());
+        if (file == null) return;
+        try (BufferedWriter bw = new BufferedWriter(
+                new OutputStreamWriter(new FileOutputStream(file), "UTF-8"))) {
+            bw.write("Month,Commodity,Production(t),Demand(t),Surplus(t)," +
+                     "Waste(t),Revenue(ZMW),FSI(%),PolicyAlerts");
+            bw.newLine();
+            for (SimulationRecord r : records) {
+                bw.write(r.getMonthNumber() + "," +
+                         r.getCommodityName() + "," +
+                         String.format("%.2f", r.getProduction()) + "," +
+                         String.format("%.2f", r.getDemand()) + "," +
+                         String.format("%.2f", r.getSurplusOrShortage()) + "," +
+                         String.format("%.2f", r.getWaste()) + "," +
+                         String.format("%.2f", r.getRevenue()) + "," +
+                         String.format("%.2f", r.getFoodSecurityIndicator()) + "," +
+                         "\"" + (r.getPolicyAlerts() == null ? "" :
+                                 r.getPolicyAlerts().replace("\"", "'")) + "\"");
+                bw.newLine();
+            }
+            Alert ok = new Alert(Alert.AlertType.INFORMATION,
+                    "CSV saved:\n" + file.getAbsolutePath(), ButtonType.OK);
+            ok.setHeaderText(null); ok.showAndWait();
+        } catch (IOException ex) {
+            Alert err = new Alert(Alert.AlertType.ERROR,
+                    "Export failed:\n" + ex.getMessage(), ButtonType.OK);
+            err.setHeaderText(null); err.showAndWait();
+        }
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // ANALYTICS PAGE  (Feature 5)
+    // ══════════════════════════════════════════════════════════════════════════
+
+    private VBox buildAnalyticsPage() {
+        VBox page = new VBox(20);
+        page.setPadding(new Insets(24, 28, 40, 28));
+        page.setBackground(bg(PAGE_BG, 0));
+
+        Label title = new Label("Analytics");
+        title.setFont(Font.font("Segoe UI", FontWeight.BOLD, 22));
+        title.setTextFill(Color.web(TEXT_PRI));
+
+        Button clearAnalyticsBtn = actionButton("✕  Clear Charts", CORAL);
+        clearAnalyticsBtn.setPadding(new Insets(8, 16, 8, 16));
+        clearAnalyticsBtn.setOnAction(e -> clearAnalyticsCharts());
+
+        Region analyticsSpacer = new Region();
+        HBox.setHgrow(analyticsSpacer, Priority.ALWAYS);
+        HBox analyticsTitleRow = new HBox(12, title, analyticsSpacer, clearAnalyticsBtn);
+        analyticsTitleRow.setAlignment(Pos.CENTER_LEFT);
+
+        Label subtitle = new Label("Charts update automatically after each simulation run");
+        subtitle.setFont(Font.font("Segoe UI", 13));
+        subtitle.setTextFill(Color.web(TEXT_SEC));
+
+        // Placeholder
+        Label phIcon = new Label("📈");
+        phIcon.setFont(Font.font("Segoe UI", 48));
+        Label phText = new Label("No simulation data yet.");
+        phText.setFont(Font.font("Segoe UI", FontWeight.BOLD, 15));
+        phText.setTextFill(Color.web(TEXT_PRI));
+        Label phHint = new Label("Run a Maize simulation — surplus trend, revenue and FSI charts appear here.");
+        phHint.setFont(Font.font("Segoe UI", 13));
+        phHint.setTextFill(Color.web(TEXT_MUTED));
+        analyticsPlaceholder = new VBox(12, phIcon, phText, phHint);
+        analyticsPlaceholder.setAlignment(Pos.CENTER);
+        analyticsPlaceholder.setPadding(new Insets(60, 0, 60, 0));
+
+        // Surplus trend chart
+        CategoryAxis s1x = new CategoryAxis(); s1x.setLabel("Month");
+        NumberAxis   s1y = new NumberAxis();   s1y.setLabel("Surplus / Shortage (t)");
+        analSurplusChart = new LineChart<>(s1x, s1y);
+        analSurplusChart.setTitle("Surplus / Shortage Trend");
+        analSurplusChart.setAnimated(false);
+        analSurplusChart.setPrefHeight(280);
+        analSurplusChart.setStyle("-fx-background-color:" + CARD_BG + ";");
+
+        // Revenue bar chart
+        CategoryAxis s2x = new CategoryAxis(); s2x.setLabel("Month");
+        NumberAxis   s2y = new NumberAxis();   s2y.setLabel("Revenue (ZMW)");
+        analRevenueChart = new BarChart<>(s2x, s2y);
+        analRevenueChart.setTitle("Revenue by Month");
+        analRevenueChart.setAnimated(false);
+        analRevenueChart.setPrefHeight(280);
+        analRevenueChart.setStyle("-fx-background-color:" + CARD_BG + ";");
+
+        // FSI area chart
+        CategoryAxis s3x = new CategoryAxis(); s3x.setLabel("Month");
+        NumberAxis   s3y = new NumberAxis();   s3y.setLabel("Food Security (%)");
+        s3y.setUpperBound(100); s3y.setAutoRanging(false);
+        analFsiChart = new AreaChart<>(s3x, s3y);
+        analFsiChart.setTitle("Food Security Index Over Time");
+        analFsiChart.setAnimated(false);
+        analFsiChart.setPrefHeight(280);
+        analFsiChart.setStyle("-fx-background-color:" + CARD_BG + ";");
+
+        analyticsChartsArea = new VBox(20, analSurplusChart, analRevenueChart, analFsiChart);
+        analyticsChartsArea.setVisible(false);
+        analyticsChartsArea.setManaged(false);
+
+        page.getChildren().addAll(analyticsTitleRow, subtitle, analyticsPlaceholder, analyticsChartsArea);
+        return page;
+    }
+
+    private void clearAnalyticsCharts() {
+        if (analSurplusChart != null) analSurplusChart.getData().clear();
+        if (analRevenueChart != null) analRevenueChart.getData().clear();
+        if (analFsiChart     != null) analFsiChart.getData().clear();
+        if (analyticsChartsArea != null) {
+            analyticsChartsArea.setVisible(false);
+            analyticsChartsArea.setManaged(false);
+        }
+        if (analyticsPlaceholder != null) {
+            analyticsPlaceholder.setVisible(true);
+            analyticsPlaceholder.setManaged(true);
+        }
+    }
+
+    private void updateAnalyticsCharts(List<SimulationRecord> records) {
+        if (records == null || records.isEmpty()) return;
+
+        XYChart.Series<String, Number> surplusSeries = new XYChart.Series<>();
+        surplusSeries.setName("Surplus/Shortage (t)");
+        XYChart.Series<String, Number> revSeries = new XYChart.Series<>();
+        revSeries.setName("Revenue (ZMW)");
+        XYChart.Series<String, Number> fsiSeries = new XYChart.Series<>();
+        fsiSeries.setName("FSI (%)");
+
+        for (SimulationRecord r : records) {
+            String m = "M" + r.getMonthNumber();
+            surplusSeries.getData().add(new XYChart.Data<>(m, r.getSurplusOrShortage()));
+            revSeries.getData().add(new XYChart.Data<>(m, r.getRevenue()));
+            fsiSeries.getData().add(new XYChart.Data<>(m, r.getFoodSecurityIndicator()));
+        }
+
+        analSurplusChart.getData().clear();
+        analSurplusChart.getData().add(surplusSeries);
+        analRevenueChart.getData().clear();
+        analRevenueChart.getData().add(revSeries);
+        analFsiChart.getData().clear();
+        analFsiChart.getData().add(fsiSeries);
+
+        analyticsPlaceholder.setVisible(false);
+        analyticsPlaceholder.setManaged(false);
+        analyticsChartsArea.setVisible(true);
+        analyticsChartsArea.setManaged(true);
     }
 
     // ══════════════════════════════════════════════════════════════════════════

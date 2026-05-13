@@ -25,6 +25,7 @@ public class Tomato extends Commodity {
     private StorageType storageType;     // COLD or OPEN (enum, not String)
     private double spoilageRate;         // % spoiled per day at base rate
     private double marketPricePerCrate;  // ZMW per crate (~25 kg)
+    private int    daysStored;           // days in storage before sale
 
     // price (inherited from Commodity) is kept equal to marketPricePerCrate * 40
     // via setMarketPricePerCrate, so getPricePerTon() always returns the correct value.
@@ -96,6 +97,37 @@ public class Tomato extends Commodity {
             throw new IllegalArgumentException("market price per crate must be >= 0");
         this.marketPricePerCrate = marketPricePerCrate;
         this.price = marketPricePerCrate * 40.0; // keep inherited price field in sync
+    }
+
+    public int getDaysStored() { return daysStored; }
+
+    public void setDaysStored(int daysStored) {
+        if (daysStored < 0) throw new IllegalArgumentException("daysStored must be >= 0");
+        this.daysStored = daysStored;
+    }
+
+    /** Returns tons spoiled; cold storage applies 0.4x factor (60% reduction per spec). */
+    public double calculateSpoilage() {
+        if (storageType == StorageType.COLD)
+            return productionVolume * (spoilageRate / 100.0) * daysStored * 0.4;
+        return productionVolume * (spoilageRate / 100.0) * daysStored;
+    }
+
+    /** Returns production volume minus spoilage, clamped to zero. */
+    public double getRemainingVolume() {
+        return Math.max(0.0, productionVolume - calculateSpoilage());
+    }
+
+    /** Revenue from remaining saleable volume at market price per crate. */
+    public double calculateRevenue() {
+        return getRemainingVolume() * marketPricePerCrate;
+    }
+
+    /** Warns when 80% of shelf life is consumed. */
+    public String getStorageStatusMessage() {
+        if (daysStored > shelfLifeDays * 0.8)
+            return "WARNING: Stock approaching shelf life limit";
+        return "STORAGE OK";
     }
 
     /** Total value of this harvest at the current per-ton price. */
